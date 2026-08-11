@@ -400,6 +400,18 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
   </div>
 
   <div class="card">
+    <div class="card-hdr">💱 使用通貨の設定</div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">追加する通貨を選んでください（JPY・EUR・USDは削除不可）</p>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        <select id="newCurrency" style="flex:1"></select>
+        <button class="btn btn-accent btn-sm" onclick="addCurrency()">追加</button>
+      </div>
+      <div class="card-tag" id="currencyTagList"></div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-hdr">💹 為替レート（対JPY）</div>
     <div class="card-body">
       <div class="rate-grid" id="rateGrid"></div>
@@ -471,7 +483,9 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
 
 <script>
 // ===== 定数 =====
-const CURRENCIES = ['JPY','CHF','EUR','GBP','USD','CNY'];
+const DEFAULT_CURRENCIES = ['JPY','EUR','USD'];
+const ALL_CURRENCIES = ['JPY','EUR','USD','CHF','GBP','CNY','HKD','SGD','THB','KRW','AUD','CAD','MXN','BRL','INR','TRY','NOK','SEK','DKK','CZK','HUF','PLN','RON'];
+// 現在有効な通貨リストは state.currencies で管理
 const CATEGORIES = ['食事','交通','宿泊','娯楽教養','日用消耗品','嗜好品','飲酒','通信','治療薬品','衣料','その他'];
 const DEFAULT_CARDS = ['Cash'];
 
@@ -479,9 +493,10 @@ const DEFAULT_CARDS = ['Cash'];
 let state = {
   expenses: [],   // {id, ts, amount, currency, category, payment, country, city, memo}
   fxRecords: [],  // {id, ts, source, fromCur, fromAmt, toCur, toAmt, memo}
-  rates: {},      // {CHF:165, EUR:160, ...} JPY基準
+  rates: {},      // {EUR:162, ...} JPY基準
   rateUpdated: null,
   cards: [...DEFAULT_CARDS],
+  currencies: [...DEFAULT_CURRENCIES], // 使用通貨リスト
 };
 
 // ===== 選択状態 =====
@@ -501,15 +516,17 @@ function init() {
   if (saved) { try { state = JSON.parse(saved); } catch(e) {} }
   // rates がなければデフォルト
   if (!state.rates || Object.keys(state.rates).length === 0) {
-    state.rates = {CHF:165, EUR:162, GBP:195, USD:150, CNY:21};
+    state.rates = {EUR:162, USD:150};
   }
   if (!state.cards || state.cards.length === 0) state.cards = [...DEFAULT_CARDS];
+  if (!state.currencies || state.currencies.length === 0) state.currencies = [...DEFAULT_CURRENCIES];
 
   renderCurrencyPills();
   renderCatPills();
   renderPayPills();
   renderFxCurrencySelects();
   renderCards();
+  renderCurrencySettings();
   renderRateGrid();
   renderSummary();
   renderList();
@@ -541,8 +558,8 @@ async function fetchRates() {
     const r = await fetch('https://open.er-api.com/v6/latest/JPY');
     const data = await r.json();
     if (data && data.rates) {
-      // JPY基準の逆数で各通貨→JPYレートを計算
-      ['CHF','EUR','GBP','USD','CNY'].forEach(cur => {
+      // JPY基準の逆数で各通貨→JPYレートを計算（JPY以外の全登録通貨）
+      state.currencies.filter(c => c !== 'JPY').forEach(cur => {
         if (data.rates[cur]) {
           state.rates[cur] = Math.round((1 / data.rates[cur]) * 100) / 100;
         }
@@ -566,9 +583,14 @@ function toJPY(amount, currency) {
 }
 
 // ===== CURRENCY PILLS =====
+function getCurrencyList() {
+  return [...state.currencies.filter(c => c !== 'JPY'), ...(state.currencies.includes('JPY') ? ['JPY'] : [])];
+}
 function renderCurrencyPills() {
+  const list = getCurrencyList();
+  if (!list.includes(selCurrency)) selCurrency = list[0] || 'JPY';
   const el = document.getElementById('exp-currency-pills');
-  el.innerHTML = CURRENCIES.filter(c => c !== 'JPY').concat(['JPY']).map(c =>
+  el.innerHTML = list.map(c =>
     `<button class="c-pill ${c===selCurrency?'selected':''}" onclick="pickCurrency('${c}')">${c}</button>`
   ).join('');
 }
@@ -601,11 +623,12 @@ function selectFxSource(btn) {
 
 // ===== FX CURRENCY SELECTS =====
 function renderFxCurrencySelects() {
-  const opts = CURRENCIES.map(c => `<option value="${c}">${c}</option>`).join('');
+  const opts = state.currencies.map(c => `<option value="${c}">${c}</option>`).join('');
   document.getElementById('fx-from-cur').innerHTML = opts;
   document.getElementById('fx-to-cur').innerHTML = opts;
-  document.getElementById('fx-from-cur').value = 'JPY';
-  document.getElementById('fx-to-cur').value = 'EUR';
+  document.getElementById('fx-from-cur').value = state.currencies.includes('JPY') ? 'JPY' : state.currencies[0];
+  const toDefault = state.currencies.find(c => c !== 'JPY') || state.currencies[0];
+  document.getElementById('fx-to-cur').value = toDefault;
 }
 
 // ===== ADD EXPENSE =====
@@ -761,8 +784,9 @@ function deleteExpense(id) {
 
 // ===== EDIT MODAL =====
 function renderEditCurrencyPills() {
+  const list = getCurrencyList();
   const el = document.getElementById('edit-currency-pills');
-  el.innerHTML = CURRENCIES.filter(c => c !== 'JPY').concat(['JPY']).map(c =>
+  el.innerHTML = list.map(c =>
     `<button class="c-pill ${c===editSelCurrency?'selected':''}" onclick="pickEditCurrency('${c}')">${c}</button>`
   ).join('');
 }
@@ -902,6 +926,53 @@ function renderCards() {
   `).join('');
 }
 
+// ===== CURRENCY MANAGEMENT =====
+const LOCKED_CURRENCIES = ['JPY','EUR','USD'];
+
+function renderCurrencySettings() {
+  // セレクトに未追加の通貨を列挙
+  const sel = document.getElementById('newCurrency');
+  const available = ALL_CURRENCIES.filter(c => !state.currencies.includes(c));
+  sel.innerHTML = available.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  // タグリスト
+  const el = document.getElementById('currencyTagList');
+  el.innerHTML = state.currencies.map(c => `
+    <span class="card-tag-item">
+      ${c}
+      ${LOCKED_CURRENCIES.includes(c)
+        ? '<span style="color:var(--muted);font-size:10px">固定</span>'
+        : `<button onclick="deleteCurrency('${c}')" title="削除">✕</button>`}
+    </span>
+  `).join('');
+}
+
+function addCurrency() {
+  const val = document.getElementById('newCurrency').value;
+  if (!val) return;
+  if (state.currencies.includes(val)) { showToast('すでに追加済みです'); return; }
+  state.currencies.push(val);
+  save();
+  renderCurrencySettings();
+  renderCurrencyPills();
+  renderFxCurrencySelects();
+  // レートを取得
+  fetchRates();
+  showToast(`${val} を追加しました`);
+}
+
+function deleteCurrency(cur) {
+  if (LOCKED_CURRENCIES.includes(cur)) { showToast(`${cur}は削除できません`); return; }
+  state.currencies = state.currencies.filter(c => c !== cur);
+  delete state.rates[cur];
+  if (selCurrency === cur) selCurrency = getCurrencyList()[0] || 'JPY';
+  save();
+  renderCurrencySettings();
+  renderCurrencyPills();
+  renderFxCurrencySelects();
+  showToast(`${cur} を削除しました`);
+}
+
 // ===== RATE GRID =====
 function renderRateGrid() {
   const el = document.getElementById('rateGrid');
@@ -1010,8 +1081,9 @@ function resetAll() {
   if (!confirm('全データを消去しますか？')) return;
   state = {
     expenses:[], fxRecords:[],
-    rates:{CHF:165, EUR:162, GBP:195, USD:150, CNY:21},
-    rateUpdated: null, cards:[...DEFAULT_CARDS]
+    rates:{EUR:162, USD:150},
+    rateUpdated: null, cards:[...DEFAULT_CARDS],
+    currencies:[...DEFAULT_CURRENCIES]
   };
   save(); init();
   showToast('リセットしました');
