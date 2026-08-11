@@ -1,0 +1,764 @@
+<div id="postlog-root"></div>
+<style>
+#postlog-root, #postlog-root * { box-sizing: border-box; }
+#postlog-root {
+  --paper: #EAE6DD;
+  --paper-deep: #DFDACD;
+  --ink: #20242E;
+  --ink-soft: #6B7080;
+  --card: #FFFFFF;
+  --border: #D6D0C0;
+  --yellow: #FFCE00;
+  --yellow-deep: #E0AE00;
+  --red: #C31F3D;
+  --green: #2F6E4F;
+  --radius: 10px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  min-height: 100vh;
+  padding: 0 0 96px 0;
+  -webkit-font-smoothing: antialiased;
+}
+#postlog-root .heading-font { font-family: 'Space Grotesk', 'Hiragino Sans', sans-serif; }
+
+#postlog-root .wrap { max-width: 560px; margin: 0 auto; padding: 18px 16px; }
+
+/* Header */
+#postlog-root .app-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 4px 2px 18px 2px; border-bottom: 2px solid var(--ink);
+  margin-bottom: 14px;
+}
+#postlog-root .app-title { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+#postlog-root .app-sub { font-size: 11px; color: var(--ink-soft); margin-top: 4px; letter-spacing: 0.02em; }
+#postlog-root .app-badge {
+  background: var(--yellow); color: var(--ink); font-size: 10px; font-weight: 700;
+  padding: 5px 8px; border-radius: 3px; border: 1.5px solid var(--ink);
+  transform: rotate(2deg); white-space: nowrap;
+}
+
+/* Tabs */
+#postlog-root .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+#postlog-root .tab-btn {
+  flex: 1; padding: 10px 8px; font-family: inherit; font-size: 12px; font-weight: 700;
+  background: transparent; border: 1.5px solid var(--ink); border-radius: var(--radius);
+  color: var(--ink); cursor: pointer; letter-spacing: 0.01em;
+}
+#postlog-root .tab-btn.active { background: var(--ink); color: var(--paper); }
+#postlog-root .tab-count { opacity: 0.6; font-weight: 500; }
+
+/* List */
+#postlog-root .empty-state {
+  border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 32px 18px;
+  text-align: center; color: var(--ink-soft); font-size: 12.5px; line-height: 1.7;
+}
+#postlog-root .entry-card {
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: var(--radius);
+  padding: 12px; margin-bottom: 10px; display: flex; gap: 12px; position: relative;
+  overflow: hidden;
+}
+#postlog-root .entry-thumb {
+  width: 64px; height: 64px; border-radius: 6px; object-fit: cover; flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--paper-deep);
+}
+#postlog-root .entry-thumb.placeholder { display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--ink-soft); }
+#postlog-root .entry-body { flex: 1; min-width: 0; }
+#postlog-root .entry-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+#postlog-root .entry-sender { font-size: 13.5px; font-weight: 700; overflow-wrap: anywhere; }
+#postlog-root .entry-date { font-size: 10.5px; color: var(--ink-soft); white-space: nowrap; }
+#postlog-root .entry-memo { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; overflow-wrap: anywhere; }
+#postlog-root .entry-tags { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+#postlog-root .tag {
+  font-size: 9.5px; font-weight: 700; padding: 3px 7px; border-radius: 20px; border: 1px solid currentColor;
+}
+#postlog-root .tag.pending { color: var(--red); }
+#postlog-root .tag.open-req { color: var(--yellow-deep); }
+#postlog-root .tag.reported { color: var(--green); }
+#postlog-root .entry-actions { display: flex; gap: 6px; margin-top: 8px; }
+#postlog-root .mini-btn {
+  font-family: inherit; font-size: 10px; font-weight: 700; padding: 5px 8px;
+  border-radius: 6px; border: 1px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer;
+}
+#postlog-root .mini-btn.danger { border-color: var(--red); color: var(--red); }
+
+/* Stamp */
+#postlog-root .stamp {
+  position: absolute; top: 8px; right: 10px; width: 62px; height: 62px;
+  border: 2.5px solid var(--red); border-radius: 50%; color: var(--red);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-family: 'Space Grotesk', sans-serif; font-size: 8.5px; font-weight: 700;
+  transform: rotate(-14deg); opacity: 0.85; line-height: 1.25; letter-spacing: 0.03em;
+  pointer-events: none; mix-blend-mode: multiply;
+}
+#postlog-root .stamp::before {
+  content: ''; position: absolute; inset: 5px; border: 1px solid var(--red); border-radius: 50%;
+}
+
+/* FAB */
+#postlog-root .fab {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--yellow); border: none; border-radius: 30px;
+  padding: 14px 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px;
+  display: flex; align-items: center; gap: 8px; cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+  z-index: 40;
+}
+#postlog-root .fab-secondary {
+  position: fixed; bottom: 22px; right: 16px; background: var(--card); color: var(--ink);
+  border: 1.5px solid var(--ink); border-radius: 30px; padding: 12px 16px; font-size: 12px;
+  font-weight: 700; font-family: inherit; cursor: pointer; z-index: 40;
+}
+#postlog-root .header-icon-btn {
+  background: var(--card); border: 1.5px solid var(--ink); border-radius: 20px; width: 34px; height: 34px;
+  font-size: 15px; cursor: pointer; margin-left: 8px; flex-shrink: 0;
+}
+#postlog-root .badge-row { display: flex; align-items: flex-start; }
+#postlog-root .data-section { border: 1.5px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; background: var(--card); }
+#postlog-root .data-section h4 { font-family: 'Space Grotesk', sans-serif; font-size: 13px; margin: 0 0 6px 0; }
+#postlog-root .data-section p { font-size: 11px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 10px 0; }
+
+/* Modal */
+#postlog-root .modal-veil {
+  position: fixed; inset: 0; background: rgba(20,20,24,0.55); z-index: 50;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+#postlog-root .modal-sheet {
+  background: var(--paper); width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto;
+  border-radius: 18px 18px 0 0; padding: 18px 16px 28px 16px; border-top: 2.5px solid var(--ink);
+}
+#postlog-root .modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+#postlog-root .field { margin-bottom: 12px; }
+#postlog-root .field label { display: block; font-size: 10.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 5px; letter-spacing: 0.03em; text-transform: uppercase; }
+#postlog-root .field input[type="text"], #postlog-root .field textarea, #postlog-root .field select {
+  width: 100%; font-family: inherit; font-size: 13px; padding: 9px 10px; border-radius: 7px;
+  border: 1.5px solid var(--border); background: var(--card); color: var(--ink);
+}
+#postlog-root .field textarea { min-height: 64px; resize: vertical; }
+#postlog-root .photo-zone {
+  border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 14px; text-align: center;
+  margin-bottom: 12px; background: var(--card);
+}
+#postlog-root .photo-preview { max-width: 100%; max-height: 220px; border-radius: 8px; margin-bottom: 10px; display: none; }
+#postlog-root .capture-btn {
+  font-family: inherit; font-weight: 700; font-size: 12.5px; padding: 10px 16px;
+  border-radius: 8px; border: 1.5px solid var(--ink); background: var(--yellow); color: var(--ink); cursor: pointer;
+}
+#postlog-root .ocr-status { font-size: 11px; color: var(--ink-soft); margin-top: 8px; min-height: 14px; }
+#postlog-root .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+#postlog-root .btn-primary {
+  flex: 1; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13.5px;
+  padding: 12px; border-radius: 8px; border: none; background: var(--ink); color: var(--paper); cursor: pointer;
+}
+#postlog-root .btn-ghost {
+  font-family: inherit; font-weight: 700; font-size: 12.5px; padding: 12px 14px;
+  border-radius: 8px; border: 1.5px solid var(--ink); background: transparent; color: var(--ink); cursor: pointer;
+}
+#postlog-root .related-pick { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
+#postlog-root .related-opt {
+  border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12px; cursor: pointer; background: var(--card);
+}
+#postlog-root .related-opt.selected { border-color: var(--ink); background: var(--yellow); }
+
+/* Report modal */
+#postlog-root .report-text {
+  width: 100%; min-height: 220px; font-family: inherit; font-size: 12px; padding: 12px;
+  border-radius: 8px; border: 1.5px solid var(--border); background: var(--card); white-space: pre-wrap;
+}
+#postlog-root .toast {
+  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper);
+  padding: 9px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; z-index: 60; opacity: 0; transition: opacity 0.25s;
+  pointer-events: none;
+}
+#postlog-root .toast.show { opacity: 1; }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+<script>
+(function(){
+  const root = document.getElementById('postlog-root');
+  let tab = 'envelope'; // 'envelope' | 'opened'
+  let data = { envelope: [], opened: [] };
+  let modalMode = null; // 'add-envelope' | 'add-opened' | 'edit-envelope' | 'edit-opened'
+  let draft = { photo: null, sender: '', memo: '', ocrText: '', relatedId: null, openRequested: false, editId: null };
+  let dataModalOpen = false;
+
+  const KEY = (t, id) => `postlog:${t}:${id}`;
+  const IDX = (t) => `postlog:${t}:index`;
+  const LS_PREFIX = 'postlog_v1__';
+
+  function lsGet(key){ try { return localStorage.getItem(LS_PREFIX + key); } catch(e){ return null; } }
+  function lsSet(key, value){ try { localStorage.setItem(LS_PREFIX + key, value); return true; } catch(e){ return false; } }
+  function lsDelete(key){ try { localStorage.removeItem(LS_PREFIX + key); } catch(e){} }
+
+  async function loadAll(){
+    for (const t of ['envelope','opened']) {
+      try {
+        const idxRaw = lsGet(IDX(t));
+        const ids = idxRaw ? JSON.parse(idxRaw) : [];
+        const items = [];
+        for (const id of ids) {
+          const raw = lsGet(KEY(t, id));
+          if (raw) items.push(JSON.parse(raw));
+        }
+        items.sort((a,b) => b.createdAt - a.createdAt);
+        data[t] = items;
+      } catch(e) { data[t] = []; }
+    }
+    render();
+  }
+
+  function saveEntry(t, entry){
+    const ok = lsSet(KEY(t, entry.id), JSON.stringify(entry));
+    if (!ok) { toast('⚠ 保存容量の上限です。⚙データ管理から書き出して削除してください'); return false; }
+    const idxRaw = lsGet(IDX(t));
+    const ids = idxRaw ? JSON.parse(idxRaw) : [];
+    if (!ids.includes(entry.id)) { ids.push(entry.id); lsSet(IDX(t), JSON.stringify(ids)); }
+    return true;
+  }
+
+  function deleteEntry(t, id){
+    lsDelete(KEY(t, id));
+    const idxRaw = lsGet(IDX(t));
+    let ids = idxRaw ? JSON.parse(idxRaw) : [];
+    ids = ids.filter(x => x !== id);
+    lsSet(IDX(t), JSON.stringify(ids));
+    data[t] = data[t].filter(e => e.id !== id);
+    render();
+  }
+
+  function fmtDate(ts){
+    const d = new Date(ts);
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function compressImage(file){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = e => { img.onload = () => {
+        const maxW = 640;
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.55));
+      }; img.onerror = reject; img.src = e.target.result; };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function runOcr(dataUrl, statusEl){
+    if (!window.Tesseract) { statusEl.textContent = 'OCRライブラリを読み込めませんでした（手動入力してください）'; return ''; }
+    try {
+      statusEl.textContent = '文字認識中…（回線状況により時間がかかる場合があります）';
+      const result = await Tesseract.recognize(dataUrl, 'deu+eng+fra+spa', {});
+      const text = (result && result.data && result.data.text || '').trim();
+      statusEl.textContent = text ? '認識完了。内容を確認・修正してください。' : '文字を認識できませんでした。手動入力してください。';
+      return text;
+    } catch(e) {
+      statusEl.textContent = 'OCRに失敗しました（ネットワーク制限の可能性）。手動入力してください。';
+      return '';
+    }
+  }
+
+  function toast(msg){
+    let el = root.querySelector('.toast');
+    if (!el) { el = document.createElement('div'); el.className = 'toast'; root.appendChild(el); }
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  function openModal(mode, existing){
+    modalMode = mode;
+    if (existing) {
+      draft = {
+        photo: existing.photo || null,
+        sender: existing.sender || '',
+        memo: existing.memo || '',
+        ocrText: existing.ocrText || '',
+        relatedId: existing.relatedId || null,
+        openRequested: !!existing.openRequested,
+        editId: existing.id
+      };
+    } else {
+      draft = { photo: null, sender: '', memo: '', ocrText: '', relatedId: null, openRequested: false, editId: null };
+    }
+    render();
+  }
+  function closeModal(){ modalMode = null; render(); }
+
+  async function handleSaveEnvelope(){
+    const senderInput = root.querySelector('#f-sender');
+    const memoInput = root.querySelector('#f-memo');
+    const ocrTextInput = root.querySelector('#f-ocrtext');
+    const openReq = root.querySelector('#f-openreq').checked;
+    let entry;
+    if (draft.editId) {
+      entry = data.envelope.find(e => e.id === draft.editId);
+      if (!entry) return;
+      entry.sender = senderInput.value.trim() || '(不明)';
+      entry.memo = memoInput.value.trim();
+      entry.ocrText = ocrTextInput.value;
+      entry.photo = draft.photo;
+      entry.openRequested = openReq;
+    } else {
+      entry = {
+        id: 'e' + Date.now(),
+        createdAt: Date.now(),
+        sender: senderInput.value.trim() || '(不明)',
+        memo: memoInput.value.trim(),
+        ocrText: ocrTextInput.value,
+        photo: draft.photo,
+        openRequested: openReq,
+        reported: false,
+        reportDate: null,
+        exported: false
+      };
+      data.envelope.unshift(entry);
+    }
+    const ok = saveEntry('envelope', entry);
+    if (!ok) { if (!draft.editId) data.envelope.shift(); return; }
+    closeModal();
+    toast(draft.editId ? '修正しました' : '記録しました');
+  }
+
+  async function handleSaveOpened(){
+    const memoInput = root.querySelector('#f-memo');
+    const ocrTextInput = root.querySelector('#f-ocrtext-o');
+    if (!draft.relatedId) { toast('対応する郵便物を選んでください'); return; }
+    let entry;
+    if (draft.editId) {
+      entry = data.opened.find(e => e.id === draft.editId);
+      if (!entry) return;
+      entry.relatedId = draft.relatedId;
+      entry.memo = memoInput.value.trim();
+      entry.ocrText = ocrTextInput ? ocrTextInput.value : entry.ocrText;
+      entry.photo = draft.photo;
+    } else {
+      entry = {
+        id: 'o' + Date.now(),
+        createdAt: Date.now(),
+        relatedId: draft.relatedId,
+        memo: memoInput.value.trim(),
+        ocrText: draft.ocrText,
+        photo: draft.photo,
+        reported: false,
+        reportDate: null,
+        exported: false
+      };
+      data.opened.unshift(entry);
+    }
+    const ok = saveEntry('opened', entry);
+    if (!ok) { if (!draft.editId) data.opened.shift(); return; }
+    closeModal();
+    toast(draft.editId ? '修正しました' : '開封記録を保存しました');
+  }
+
+  async function markReported(t, id){
+    const entry = data[t].find(e => e.id === id);
+    if (!entry) return;
+    entry.reported = true;
+    entry.reportDate = Date.now();
+    await saveEntry(t, entry);
+    render();
+  }
+
+  async function markUnreported(t, id){
+    const entry = data[t].find(e => e.id === id);
+    if (!entry) return;
+    entry.reported = false;
+    entry.reportDate = null;
+    await saveEntry(t, entry);
+    render();
+    toast('未報告に戻しました');
+  }
+
+  function unreportedEntries(t){ return data[t].filter(e => !e.reported); }
+
+  async function exportAll(){
+    const totalCount = data.envelope.length + data.opened.length;
+    if (!totalCount) { toast('書き出す記録がありません'); return; }
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      note: 'Berlin Briefkasten Protokoll export',
+      envelope: data.envelope,
+      opened: data.opened
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const filename = `postlog-export-${new Date().toISOString().slice(0,10)}.json`;
+
+    let shared = false;
+    try {
+      if (navigator.canShare) {
+        const file = new File([blob], filename, { type: 'application/json' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: filename });
+          shared = true;
+        }
+      }
+    } catch(e) { /* user cancelled */ shared = true; }
+
+    if (!shared) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+
+    for (const t of ['envelope','opened']) {
+      for (const e of data[t]) { e.exported = true; await saveEntry(t, e); }
+    }
+    render();
+    toast('書き出しました');
+  }
+
+  async function clearExported(){
+    for (const t of ['envelope','opened']) {
+      const toDelete = data[t].filter(e => e.exported).map(e => e.id);
+      for (const id of toDelete) lsDelete(KEY(t, id));
+      const idxRaw = lsGet(IDX(t));
+      let ids = idxRaw ? JSON.parse(idxRaw) : [];
+      ids = ids.filter(id => !toDelete.includes(id));
+      lsSet(IDX(t), JSON.stringify(ids));
+      data[t] = data[t].filter(e => !e.exported);
+    }
+    dataModalOpen = false;
+    render();
+    toast('書き出し済みの記録を削除しました');
+  }
+
+  function buildReportText(t){
+    const list = unreportedEntries(t);
+    if (!list.length) return '';
+    const label = t === 'envelope' ? '外装記録' : '開封記録';
+    let out = `【郵便物 ${label} 報告】${fmtDate(Date.now())}\n\n`;
+    list.forEach((e, i) => {
+      out += `${i+1}. ${fmtDate(e.createdAt)}\n`;
+      if (t === 'envelope') {
+        out += `   差出人: ${e.sender}\n`;
+        if (e.openRequested) out += `   → 開封依頼あり\n`;
+      } else {
+        const rel = data.envelope.find(x => x.id === e.relatedId);
+        out += `   対応: ${rel ? rel.sender : '(不明)'}\n`;
+      }
+      if (e.memo) out += `   メモ: ${e.memo}\n`;
+      out += '\n';
+    });
+    return out;
+  }
+
+  async function shareReport(t){
+    const text = buildReportText(t);
+    if (!text) { toast('未報告の記録がありません'); return; }
+    const list = unreportedEntries(t);
+    try {
+      if (navigator.share) {
+        const files = [];
+        for (const e of list) {
+          if (e.photo) {
+            const res = await fetch(e.photo); const blob = await res.blob();
+            files.push(new File([blob], `${e.id}.jpg`, { type: 'image/jpeg' }));
+          }
+        }
+        const shareData = { text };
+        if (files.length && navigator.canShare && navigator.canShare({ files })) shareData.files = files;
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(text);
+        toast('共有非対応のためコピーしました');
+      }
+    } catch(e) { /* user cancelled or unsupported */ }
+  }
+
+  async function copyReport(t){
+    const text = buildReportText(t);
+    if (!text) { toast('未報告の記録がありません'); return; }
+    try { await navigator.clipboard.writeText(text); toast('コピーしました'); }
+    catch(e) { toast('コピーに失敗しました'); }
+  }
+
+  async function markAllReported(t){
+    const list = unreportedEntries(t);
+    for (const e of list) { e.reported = true; e.reportDate = Date.now(); await saveEntry(t, e); }
+    render();
+    toast('報告済みにしました');
+  }
+
+  function entryCardHtml(t, e){
+    const thumb = e.photo
+      ? `<img class="entry-thumb" src="${e.photo}" alt="">`
+      : `<div class="entry-thumb placeholder">✉</div>`;
+    const title = t === 'envelope' ? e.sender : (() => {
+      const rel = data.envelope.find(x => x.id === e.relatedId);
+      return rel ? `開封: ${rel.sender}` : '開封記録';
+    })();
+    const tags = [];
+    if (t === 'envelope' && e.openRequested) tags.push(`<span class="tag open-req">開封依頼</span>`);
+    tags.push(e.reported ? `<span class="tag reported">報告済み</span>` : `<span class="tag pending">未報告</span>`);
+    const stamp = e.reported
+      ? `<div class="stamp">GEMELDET<br>${new Date(e.reportDate).toISOString().slice(0,10)}</div>`
+      : '';
+    return `
+      <div class="entry-card">
+        ${stamp}
+        ${thumb}
+        <div class="entry-body">
+          <div class="entry-top">
+            <div class="entry-sender">${title}</div>
+            <div class="entry-date">${fmtDate(e.createdAt)}</div>
+          </div>
+          ${e.memo ? `<div class="entry-memo">${e.memo}</div>` : ''}
+          <div class="entry-tags">${tags.join('')}</div>
+          <div class="entry-actions">
+            ${!e.reported
+              ? `<button class="mini-btn" data-act="report" data-t="${t}" data-id="${e.id}">報告済みにする</button>`
+              : `<button class="mini-btn" data-act="unreport" data-t="${t}" data-id="${e.id}">未報告に戻す</button>`}
+            <button class="mini-btn" data-act="edit" data-t="${t}" data-id="${e.id}">編集</button>
+            <button class="mini-btn danger" data-act="delete" data-t="${t}" data-id="${e.id}">削除</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function modalHtml(){
+    if (!modalMode) return '';
+    const isEnvelope = modalMode === 'add-envelope' || modalMode === 'edit-envelope';
+    const isEdit = modalMode === 'edit-envelope' || modalMode === 'edit-opened';
+    const titleText = isEnvelope
+      ? (isEdit ? '外装記録を編集' : '外装を記録')
+      : (isEdit ? '開封記録を編集' : '開封記録を追加');
+    return `
+      <div class="modal-veil" data-close="veil">
+        <div class="modal-sheet" data-stop="1">
+          <div class="modal-title">${titleText}</div>
+
+          <div class="photo-zone">
+            <img class="photo-preview" id="f-preview" style="${draft.photo ? 'display:block' : ''}" src="${draft.photo || ''}">
+            <input type="file" accept="image/*" capture="environment" id="f-photo" style="display:none">
+            <button class="capture-btn" id="f-capture-btn">📷 ${draft.photo ? '撮り直す' : '写真を撮る'}</button>
+            <div class="ocr-status" id="f-ocr-status"></div>
+          </div>
+
+          ${isEnvelope ? `
+          <div class="field">
+            <label>差出人（OCR認識・修正可）</label>
+            <input type="text" id="f-sender" value="${draft.sender}">
+          </div>
+          <div class="field">
+            <label>認識テキスト全体（自由に修正可）</label>
+            <textarea id="f-ocrtext">${draft.ocrText}</textarea>
+          </div>
+          <div class="field">
+            <label><input type="checkbox" id="f-openreq" ${draft.openRequested ? 'checked' : ''}> 開封依頼あり</label>
+          </div>
+          ` : `
+          <div class="field">
+            <label>対応する外装記録を選択</label>
+            <div class="related-pick" id="f-related">
+              ${data.envelope.filter(e => e.openRequested || e.id === draft.relatedId).map(e => `
+                <div class="related-opt ${draft.relatedId === e.id ? 'selected' : ''}" data-related="${e.id}">
+                  ${e.sender} — ${fmtDate(e.createdAt)}
+                </div>`).join('') || '<div style="font-size:11px;color:var(--ink-soft)">開封依頼のある記録がありません</div>'}
+            </div>
+          </div>
+          <div class="field">
+            <label>認識テキスト全体（自由に修正可）</label>
+            <textarea id="f-ocrtext-o">${draft.ocrText}</textarea>
+          </div>
+          `}
+          <div class="field">
+            <label>メモ</label>
+            <textarea id="f-memo">${draft.memo}</textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-ghost" id="f-cancel">キャンセル</button>
+            <button class="btn-primary" id="f-save">保存する</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function dataModalHtml(){
+    if (!dataModalOpen) return '';
+    const totalCount = data.envelope.length + data.opened.length;
+    const exportedCount = data.envelope.filter(e=>e.exported).length + data.opened.filter(e=>e.exported).length;
+    return `
+      <div class="modal-veil" data-close="data-veil">
+        <div class="modal-sheet" data-stop="1">
+          <div class="modal-title">データ管理</div>
+
+          <div class="data-section">
+            <h4>保存の仕組み</h4>
+            <p>このアプリはブラウザのlocalStorage（端末内）にのみデータを保存します。外部サービスには一切送信されません。ただし容量が数MB程度と小さいため、写真を多く撮ると上限に達しやすいです。定期的に書き出して削除することをおすすめします。Claude.aiのプレビュー画面ではlocalStorageが正しく保持されない場合があるため、このHTMLファイルをダウンロードしてSafariで直接開いて使ってください。</p>
+          </div>
+
+          <div class="data-section">
+            <h4>① 書き出す</h4>
+            <p>全記録（写真込み）を1つのJSONファイルにまとめます。iOSの共有シートからGoogle Drive・ファイルアプリ・メールなどに保存してください。保存先はあなたの管理下に置かれます。</p>
+            <button class="btn-primary" id="export-btn" style="width:100%">📦 全${totalCount}件を書き出す</button>
+          </div>
+
+          <div class="data-section">
+            <h4>② 書き出し済みを削除</h4>
+            <p>①で書き出し済みの記録（現在 ${exportedCount}件）だけを、このアプリの記録から削除します。まだ書き出していない記録は消えません。</p>
+            <button class="btn-ghost" id="clear-exported-btn" style="width:100%; ${exportedCount ? '' : 'opacity:0.4'}" ${exportedCount ? '' : 'disabled'}>🗑 書き出し済み ${exportedCount}件を削除</button>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn-ghost" id="data-close" style="flex:1">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function render(){
+    const list = data[tab];
+    const countE = unreportedEntries('envelope').length;
+    const countO = unreportedEntries('opened').length;
+
+    root.innerHTML = `
+      <div class="wrap">
+        <div class="app-header">
+          <div>
+            <div class="app-title heading-font">郵便受けログ</div>
+            <div class="app-sub">Berlin — Briefkasten Protokoll ・端末内保存</div>
+          </div>
+          <div class="badge-row">
+            <div class="app-badge">未報告 ${countE + countO}</div>
+            <button class="header-icon-btn" id="data-btn" title="データ管理">⚙</button>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <button class="tab-btn ${tab==='envelope'?'active':''}" data-tab="envelope">外装記録 <span class="tab-count">(${data.envelope.length})</span></button>
+          <button class="tab-btn ${tab==='opened'?'active':''}" data-tab="opened">開封記録 <span class="tab-count">(${data.opened.length})</span></button>
+        </div>
+
+        <div class="list">
+          ${list.length ? list.map(e => entryCardHtml(tab, e)).join('') : `<div class="empty-state">まだ記録がありません。<br>右下の「＋ 記録する」から撮影して追加してください。</div>`}
+        </div>
+      </div>
+
+      <button class="fab" id="add-btn">＋ 記録する</button>
+      <button class="fab-secondary" id="report-btn">📤 レポート</button>
+
+      ${modalHtml()}
+      ${reportModalHtml()}
+      ${dataModalHtml()}
+    `;
+    bindEvents();
+  }
+
+  let reportModalOpen = false;
+  function reportModalHtml(){
+    if (!reportModalOpen) return '';
+    const text = buildReportText(tab);
+    return `
+      <div class="modal-veil" data-close="report-veil">
+        <div class="modal-sheet" data-stop="1">
+          <div class="modal-title">${tab === 'envelope' ? '外装記録' : '開封記録'}のレポート</div>
+          <textarea class="report-text" id="report-text" readonly>${text || '未報告の記録はありません。'}</textarea>
+          <div class="modal-actions">
+            <button class="btn-ghost" id="report-copy">コピー</button>
+            <button class="btn-primary" id="report-share">共有 / 送信</button>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-ghost" id="report-markall" style="flex:1">送信済みとして全て「報告済み」にする</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function bindEvents(){
+    root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+    const addBtn = root.querySelector('#add-btn');
+    if (addBtn) addBtn.onclick = () => openModal(tab === 'envelope' ? 'add-envelope' : 'add-opened');
+    const reportBtn = root.querySelector('#report-btn');
+    if (reportBtn) reportBtn.onclick = () => { reportModalOpen = true; render(); };
+
+    root.querySelectorAll('[data-act="report"]').forEach(b => b.onclick = () => markReported(b.dataset.t, b.dataset.id));
+    root.querySelectorAll('[data-act="unreport"]').forEach(b => b.onclick = () => markUnreported(b.dataset.t, b.dataset.id));
+    root.querySelectorAll('[data-act="delete"]').forEach(b => b.onclick = () => { if (confirm('削除しますか？')) deleteEntry(b.dataset.t, b.dataset.id); });
+    root.querySelectorAll('[data-act="edit"]').forEach(b => b.onclick = () => {
+      const entry = data[b.dataset.t].find(e => e.id === b.dataset.id);
+      if (entry) openModal(b.dataset.t === 'envelope' ? 'edit-envelope' : 'edit-opened', entry);
+    });
+
+    const dataBtn = root.querySelector('#data-btn');
+    if (dataBtn) dataBtn.onclick = () => { dataModalOpen = true; render(); };
+    const exportBtn = root.querySelector('#export-btn');
+    if (exportBtn) exportBtn.onclick = exportAll;
+    const clearExportedBtn = root.querySelector('#clear-exported-btn');
+    if (clearExportedBtn) clearExportedBtn.onclick = () => { if (confirm('書き出し済みの記録を削除します。よろしいですか？')) clearExported(); };
+    const dataCloseBtn = root.querySelector('#data-close');
+    if (dataCloseBtn) dataCloseBtn.onclick = () => { dataModalOpen = false; render(); };
+
+    root.querySelectorAll('[data-close]').forEach(v => v.onclick = (ev) => {
+      if (ev.target !== v) return;
+      if (v.dataset.close === 'veil') closeModal();
+      if (v.dataset.close === 'report-veil') { reportModalOpen = false; render(); }
+      if (v.dataset.close === 'data-veil') { dataModalOpen = false; render(); }
+    });
+
+    const captureBtn = root.querySelector('#f-capture-btn');
+    const fileInput = root.querySelector('#f-photo');
+    if (captureBtn && fileInput) {
+      captureBtn.onclick = () => fileInput.click();
+      fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        const dataUrl = await compressImage(file);
+        draft.photo = dataUrl;
+        const preview = root.querySelector('#f-preview');
+        preview.src = dataUrl; preview.style.display = 'block';
+        const statusEl = root.querySelector('#f-ocr-status');
+        const text = await runOcr(dataUrl, statusEl);
+        draft.ocrText = text;
+        if (modalMode === 'add-envelope') {
+          const guess = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+          draft.sender = guess;
+          const senderInput = root.querySelector('#f-sender');
+          if (senderInput) senderInput.value = guess;
+          const ocrTextArea = root.querySelector('#f-ocrtext');
+          if (ocrTextArea) ocrTextArea.value = text;
+        }
+      };
+    }
+
+    root.querySelectorAll('[data-related]').forEach(o => o.onclick = () => {
+      draft.relatedId = o.dataset.related;
+      root.querySelectorAll('[data-related]').forEach(x => x.classList.remove('selected'));
+      o.classList.add('selected');
+    });
+
+    const cancelBtn = root.querySelector('#f-cancel');
+    if (cancelBtn) cancelBtn.onclick = closeModal;
+    const saveBtn = root.querySelector('#f-save');
+    if (saveBtn) saveBtn.onclick = () => {
+      if (modalMode === 'add-envelope') handleSaveEnvelope();
+      else handleSaveOpened();
+    };
+
+    const copyBtn = root.querySelector('#report-copy');
+    if (copyBtn) copyBtn.onclick = () => copyReport(tab);
+    const shareBtn = root.querySelector('#report-share');
+    if (shareBtn) shareBtn.onclick = () => shareReport(tab);
+    const markAllBtn = root.querySelector('#report-markall');
+    if (markAllBtn) markAllBtn.onclick = () => { markAllReported(tab); reportModalOpen = false; };
+  }
+
+  // Fonts
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600;700&display=swap';
+  document.head.appendChild(link);
+
+  loadAll();
+})();
+</script>
