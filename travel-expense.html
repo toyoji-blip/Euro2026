@@ -439,6 +439,24 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
   </div>
 </div>
 
+<!-- ========== エクスポートモーダル ========== -->
+<div class="modal-overlay" id="exportModal" onclick="closeExportModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-title">
+      <span id="exportModalTitle">📄 エクスポート</span>
+      <button class="modal-close" onclick="closeExportModal()">✕</button>
+    </div>
+    <textarea id="exportContent" readonly
+      style="width:100%;height:52vh;font-size:12px;font-family:monospace;
+             border:1px solid var(--border);border-radius:8px;padding:10px;
+             background:var(--card);color:var(--text);resize:none;"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-accent btn-full" onclick="copyExportContent()">📋 コピー</button>
+      <button class="btn btn-gray btn-full" onclick="downloadExportContent()">💾 ファイル保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- ========== 編集モーダル ========== -->
 <div class="modal-overlay" id="editModal" onclick="closeEditModal(event)">
   <div class="modal-sheet">
@@ -1016,6 +1034,40 @@ function importJSON(evt) {
   reader.readAsText(file);
 }
 
+// ===== EXPORT MODAL =====
+let exportFilename = '';
+let exportMimeType = '';
+
+function openExportModal(title, content, filename, mime) {
+  exportFilename = filename;
+  exportMimeType = mime;
+  document.getElementById('exportModalTitle').textContent = title;
+  document.getElementById('exportContent').value = content;
+  document.getElementById('exportModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeExportModal(event) {
+  if (event && event.target !== document.getElementById('exportModal')) return;
+  document.getElementById('exportModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+function copyExportContent() {
+  const ta = document.getElementById('exportContent');
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(() => showToast('コピーしました'))
+    .catch(() => { document.execCommand('copy'); showToast('コピーしました'); });
+}
+function downloadExportContent() {
+  const content = document.getElementById('exportContent').value;
+  const bom = exportMimeType.includes('csv') ? '\uFEFF' : '';
+  const blob = new Blob([bom + content], {type: exportMimeType});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = exportFilename;
+  a.click();
+  showToast('ファイルを保存しました');
+}
+
 function exportCSV() {
   const rows = [['日時','金額','通貨','JPY換算','カテゴリ','支払方法','国','都市','メモ']];
   state.expenses.forEach(e => {
@@ -1027,12 +1079,8 @@ function exportCSV() {
     ]);
   });
   const csv = rows.map(r => r.map(v => `"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `travel_expense_${new Date().toISOString().slice(0,10)}.csv`;
-  a.click();
-  showToast('CSVをエクスポートしました');
+  const filename = `travel_expense_${new Date().toISOString().slice(0,10)}.csv`;
+  openExportModal('📥 CSV出力', csv, filename, 'text/csv');
 }
 
 function exportTXT() {
@@ -1077,12 +1125,8 @@ function exportTXT() {
     lines.push('');
   });
 
-  const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `travel_expense_${new Date().toISOString().slice(0,10)}.txt`;
-  a.click();
-  showToast('テキストをエクスポートしました');
+  const filename = `travel_expense_${new Date().toISOString().slice(0,10)}.txt`;
+  openExportModal('📄 テキスト出力', lines.join('\n'), filename, 'text/plain;charset=utf-8');
 }
 
 function resetAll() {
