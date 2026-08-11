@@ -196,6 +196,29 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
 .rate-code { font-weight: 700; }
 .rate-val  { font-size: 13px; color: var(--muted); }
 
+/* MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  z-index: 1000; display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: auto; }
+.modal-sheet {
+  background: var(--bg); border-radius: 16px 16px 0 0;
+  width: 100%; max-height: 92vh; overflow-y: auto;
+  padding: 16px 14px 40px;
+  transform: translateY(100%); transition: transform .3s ease;
+}
+.modal-overlay.open .modal-sheet { transform: translateY(0); }
+.modal-title {
+  font-size: 16px; font-weight: 700; margin-bottom: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-close {
+  background: none; border: none; font-size: 22px;
+  cursor: pointer; color: var(--muted); padding: 0 4px;
+}
+
 /* TOAST */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -341,13 +364,21 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
     <div class="card-hdr">カテゴリ別合計（JPY換算）</div>
     <div class="card-body" style="padding:0 12px" id="catSummary"></div>
   </div>
+
+  <div style="display:flex;gap:8px;margin-top:4px">
+    <button class="btn btn-gray btn-full" onclick="exportCSV()">📥 CSV出力</button>
+    <button class="btn btn-gray btn-full" onclick="exportTXT()">📄 テキスト出力</button>
+  </div>
 </div>
 
 <!-- ========== 一覧 ========== -->
 <div class="section" id="sec-list">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <span style="font-size:13px;color:var(--muted)" id="listCount"></span>
-    <button class="btn btn-gray btn-sm" onclick="exportCSV()">📥 CSVエクスポート</button>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-gray btn-sm" onclick="exportCSV()">📥 CSV</button>
+      <button class="btn btn-gray btn-sm" onclick="exportTXT()">📄 テキスト</button>
+    </div>
   </div>
   <div class="card">
     <div class="card-body" style="padding:0 12px" id="expenseList"></div>
@@ -396,12 +427,52 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
   </div>
 </div>
 
+<!-- ========== 編集モーダル ========== -->
+<div class="modal-overlay" id="editModal" onclick="closeEditModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-title">
+      ✏️ 支出を修正
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+
+    <input type="hidden" id="edit-id">
+
+    <label>金額</label>
+    <input type="number" id="edit-amount" placeholder="0.00" step="0.01" inputmode="decimal">
+
+    <label>通貨</label>
+    <div class="currency-pills" id="edit-currency-pills"></div>
+
+    <label>カテゴリ</label>
+    <div class="cat-pills" id="edit-cat-pills"></div>
+
+    <label>支払方法</label>
+    <div class="pay-pills" id="edit-pay-pills"></div>
+
+    <div class="row2">
+      <div>
+        <label>国</label>
+        <input type="text" id="edit-country" placeholder="例：スイス">
+      </div>
+      <div>
+        <label>都市</label>
+        <input type="text" id="edit-city" placeholder="例：ジュネーブ">
+      </div>
+    </div>
+
+    <label>メモ</label>
+    <textarea id="edit-memo" placeholder="任意"></textarea>
+
+    <button class="btn btn-accent btn-full" style="margin-top:14px" onclick="saveEdit()">💾 保存する</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 // ===== 定数 =====
 const CURRENCIES = ['JPY','CHF','EUR','GBP','USD','CNY'];
-const CATEGORIES = ['食事','交通','宿泊','観光','買物','その他'];
+const CATEGORIES = ['食事','交通','宿泊','娯楽教養','日用消耗品','嗜好品','飲酒','通信','治療薬品','衣料','その他'];
 const DEFAULT_CARDS = ['Cash'];
 
 // ===== STATE =====
@@ -418,6 +489,11 @@ let selCurrency = 'EUR';
 let selCategory = '食事';
 let selPayment  = 'Cash';
 let selFxSource = '日本銀行';
+
+// 編集モーダル用
+let editSelCurrency = 'EUR';
+let editSelCategory = '食事';
+let editSelPayment  = 'Cash';
 
 // ===== INIT =====
 function init() {
@@ -663,7 +739,10 @@ function renderList() {
         <div style="text-align:right;min-width:80px">
           <div class="exp-amount">${e.currency} ${e.amount.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
           ${e.currency!=='JPY'?`<div class="exp-jpy">¥${jpy.toLocaleString()}</div>`:''}
-          <button class="btn btn-danger btn-sm" style="margin-top:4px" onclick="deleteExpense('${e.id}')">削除</button>
+          <div style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end">
+            <button class="btn btn-primary btn-sm" onclick="openEditModal('${e.id}')">修正</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteExpense('${e.id}')">削除</button>
+          </div>
         </div>
       </div>
     `;
@@ -678,6 +757,86 @@ function deleteExpense(id) {
   renderList();
   renderSummary();
   showToast('削除しました');
+}
+
+// ===== EDIT MODAL =====
+function renderEditCurrencyPills() {
+  const el = document.getElementById('edit-currency-pills');
+  el.innerHTML = CURRENCIES.filter(c => c !== 'JPY').concat(['JPY']).map(c =>
+    `<button class="c-pill ${c===editSelCurrency?'selected':''}" onclick="pickEditCurrency('${c}')">${c}</button>`
+  ).join('');
+}
+function pickEditCurrency(c) { editSelCurrency = c; renderEditCurrencyPills(); }
+
+function renderEditCatPills() {
+  const el = document.getElementById('edit-cat-pills');
+  el.innerHTML = CATEGORIES.map(c =>
+    `<button class="cat-pill ${c===editSelCategory?'selected':''}" onclick="pickEditCat('${c}')">${c}</button>`
+  ).join('');
+}
+function pickEditCat(c) { editSelCategory = c; renderEditCatPills(); }
+
+function renderEditPayPills() {
+  const el = document.getElementById('edit-pay-pills');
+  el.innerHTML = state.cards.map(c =>
+    `<button class="pay-pill ${c===editSelPayment?'selected':''}" onclick="pickEditPay('${c}')">${c}</button>`
+  ).join('');
+}
+function pickEditPay(c) { editSelPayment = c; renderEditPayPills(); }
+
+function openEditModal(id) {
+  const exp = state.expenses.find(e => e.id === id);
+  if (!exp) return;
+
+  document.getElementById('edit-id').value = id;
+  document.getElementById('edit-amount').value = exp.amount;
+  document.getElementById('edit-country').value = exp.country || '';
+  document.getElementById('edit-city').value = exp.city || '';
+  document.getElementById('edit-memo').value = exp.memo || '';
+
+  editSelCurrency = exp.currency;
+  editSelCategory = exp.category;
+  editSelPayment  = exp.payment;
+
+  renderEditCurrencyPills();
+  renderEditCatPills();
+  renderEditPayPills();
+
+  document.getElementById('editModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEditModal(event) {
+  if (event && event.target !== document.getElementById('editModal')) return;
+  document.getElementById('editModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function saveEdit() {
+  const id = document.getElementById('edit-id').value;
+  const amount = parseFloat(document.getElementById('edit-amount').value);
+  if (!amount || amount <= 0) { showToast('金額を入力してください'); return; }
+
+  const idx = state.expenses.findIndex(e => e.id === id);
+  if (idx === -1) return;
+
+  state.expenses[idx] = {
+    ...state.expenses[idx],
+    amount,
+    currency: editSelCurrency,
+    category: editSelCategory,
+    payment:  editSelPayment,
+    country:  document.getElementById('edit-country').value.trim(),
+    city:     document.getElementById('edit-city').value.trim(),
+    memo:     document.getElementById('edit-memo').value.trim(),
+  };
+
+  save();
+  document.getElementById('editModal').classList.remove('open');
+  document.body.style.overflow = '';
+  renderList();
+  renderSummary();
+  showToast('修正しました');
 }
 
 // ===== RENDER FX LIST =====
@@ -795,6 +954,56 @@ function exportCSV() {
   a.download = `travel_expense_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   showToast('CSVをエクスポートしました');
+}
+
+function exportTXT() {
+  const date = new Date().toLocaleDateString('ja-JP');
+  const lines = [`旅行出費記録　${date}`, '='.repeat(40), ''];
+
+  // 集計
+  const byCode = {};
+  const byCat  = {};
+  let totalJPY = 0;
+  state.expenses.forEach(e => {
+    byCode[e.currency] = (byCode[e.currency] || 0) + e.amount;
+    byCat[e.category]  = (byCat[e.category]  || 0) + toJPY(e.amount, e.currency);
+    totalJPY += toJPY(e.amount, e.currency);
+  });
+
+  lines.push(`【JPY換算 総支出】  ¥${Math.round(totalJPY).toLocaleString()}`);
+  lines.push('');
+
+  lines.push('【通貨別合計】');
+  Object.entries(byCode).forEach(([cur, amt]) => {
+    lines.push(`  ${cur.padEnd(4)} ${amt.toLocaleString(undefined,{maximumFractionDigits:2}).padStart(12)}  ≈ ¥${Math.round(toJPY(amt,cur)).toLocaleString()}`);
+  });
+  lines.push('');
+
+  lines.push('【カテゴリ別合計（JPY換算）】');
+  Object.entries(byCat).sort((a,b) => b[1]-a[1]).forEach(([cat, jpy]) => {
+    lines.push(`  ${cat.padEnd(8)}  ¥${Math.round(jpy).toLocaleString()}`);
+  });
+  lines.push('');
+  lines.push('-'.repeat(40));
+  lines.push('【明細一覧】');
+  lines.push('');
+
+  [...state.expenses].reverse().forEach(e => {
+    const d = new Date(e.ts);
+    const ds = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const loc = [e.country, e.city].filter(Boolean).join(' ');
+    const jpy = Math.round(toJPY(e.amount, e.currency));
+    lines.push(`${ds}  [${e.category}]  ${e.currency} ${e.amount.toLocaleString(undefined,{maximumFractionDigits:2})}  ≈ ¥${jpy.toLocaleString()}`);
+    lines.push(`       ${e.payment}${loc?' · '+loc:''}${e.memo?' · '+e.memo:''}`);
+    lines.push('');
+  });
+
+  const blob = new Blob([lines.join('\n')], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `travel_expense_${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  showToast('テキストをエクスポートしました');
 }
 
 function resetAll() {
