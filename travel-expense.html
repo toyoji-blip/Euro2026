@@ -520,6 +520,10 @@ function init() {
   }
   if (!state.cards || state.cards.length === 0) state.cards = [...DEFAULT_CARDS];
   if (!state.currencies || state.currencies.length === 0) state.currencies = [...DEFAULT_CURRENCIES];
+  // state.ratesから登録通貨にない古いレートを削除
+  Object.keys(state.rates).forEach(cur => {
+    if (!state.currencies.includes(cur)) delete state.rates[cur];
+  });
 
   renderCurrencyPills();
   renderCatPills();
@@ -956,8 +960,8 @@ function addCurrency() {
   renderCurrencySettings();
   renderCurrencyPills();
   renderFxCurrencySelects();
-  // レートを取得
-  fetchRates();
+  renderRateGrid();   // 追加直後にグリッドへ反映（レートは「取得中…」表示）
+  fetchRates();       // API取得後に実レートで上書き
   showToast(`${val} を追加しました`);
 }
 
@@ -976,12 +980,16 @@ function deleteCurrency(cur) {
 // ===== RATE GRID =====
 function renderRateGrid() {
   const el = document.getElementById('rateGrid');
-  el.innerHTML = Object.entries(state.rates).map(([cur, rate]) => `
-    <div class="rate-item">
-      <span class="rate-code">${cur}</span>
-      <span class="rate-val">1${cur} = ¥${rate}</span>
-    </div>
-  `).join('');
+  const targets = state.currencies.filter(c => c !== 'JPY');
+  if (targets.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted)">通貨が登録されていません</div>';
+    return;
+  }
+  el.innerHTML = targets.map(cur => {
+    const rate = state.rates[cur];
+    const val = rate ? '\xA5' + rate : '取得中…';
+    return `<div class="rate-item"><span class="rate-code">${cur}</span><span class="rate-val">1${cur} = ${val}</span></div>`;
+  }).join('');
 }
 
 // ===== EXPORT =====
