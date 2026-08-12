@@ -805,6 +805,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
           </div>
           <div class="badge-row">
             <div class="app-badge">未報告 ${countE + countO}</div>
+            <button class="header-icon-btn" id="reload-btn" title="最新版を確認">🔄</button>
             <button class="header-icon-btn" id="data-btn" title="データ管理">⚙</button>
           </div>
         </div>
@@ -873,6 +874,11 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
       if (entry) openModal(b.dataset.t === 'envelope' ? 'edit-envelope' : 'edit-opened', entry);
     });
 
+    const reloadBtn = root.querySelector('#reload-btn');
+    if (reloadBtn) reloadBtn.onclick = () => {
+      const url = window.location.pathname + '?v=' + Date.now();
+      window.location.href = url;
+    };
     const dataBtn = root.querySelector('#data-btn');
     if (dataBtn) dataBtn.onclick = () => { dataModalOpen = true; render(); };
     const exportBtn = root.querySelector('#export-btn');
