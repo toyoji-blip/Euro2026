@@ -582,48 +582,24 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   }
 
   async function composeReportImage(t){
-    const list = unreportedEntries(t);
+    const list = unreportedEntries(t).filter(e => e.photo);
     if (!list.length) return null;
-    const W = 720, pad = 24, indent = 14, lineH = 25, titleH = 56, gapAfterEntry = 26;
-    const maxTextW = W - pad - indent;
-    const measure = document.createElement('canvas').getContext('2d');
+    const W = 720, pad = 24, gap = 20;
 
-    const blocks = [];
+    const imgs = [];
     for (const e of list) {
-      let imgEl = null, imgW = 0, imgH = 0;
-      if (e.photo) {
-        try {
-          imgEl = await loadImageEl(e.photo);
-          const scale = Math.min(1, (W - pad * 2) / imgEl.width);
-          imgW = Math.round(imgEl.width * scale);
-          imgH = Math.round(imgEl.height * scale);
-        } catch(e) { imgEl = null; }
-      }
-      const headerLine = fmtDate(e.createdAt);
-      const subLines = [];
-      if (t === 'envelope') {
-        subLines.push(`差出人: ${e.sender}`);
-        if (e.openRequested) subLines.push('→ 開封依頼あり');
-      } else {
-        const rel = data.envelope.find(x => x.id === e.relatedId);
-        subLines.push(`対応: ${rel ? rel.sender : '(不明)'}`);
-      }
-      if (e.memo) subLines.push(`メモ: ${e.memo}`);
-
-      measure.font = '15px sans-serif';
-      const wrapped = [];
-      subLines.forEach(l => wrapped.push(...wrapLine(measure, l, maxTextW)));
-
-      blocks.push({ headerLine, wrapped, imgEl, imgW, imgH });
+      try {
+        const imgEl = await loadImageEl(e.photo);
+        const scale = Math.min(1, (W - pad * 2) / imgEl.width);
+        const imgW = Math.round(imgEl.width * scale);
+        const imgH = Math.round(imgEl.height * scale);
+        imgs.push({ imgEl, imgW, imgH });
+      } catch(err) { /* skip unreadable photo */ }
     }
+    if (!imgs.length) return null;
 
-    let totalH = titleH + pad;
-    blocks.forEach(b => {
-      totalH += lineH; // header
-      totalH += b.wrapped.length * lineH;
-      if (b.imgEl) totalH += b.imgH + 14;
-      totalH += gapAfterEntry;
-    });
+    let totalH = pad;
+    imgs.forEach(im => { totalH += im.imgH + gap; });
     totalH += pad;
 
     const canvas = document.createElement('canvas');
@@ -632,30 +608,11 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, canvas.height);
 
     let y = pad;
-    ctx.fillStyle = '#20242E';
-    ctx.font = 'bold 20px sans-serif';
-    const label = t === 'envelope' ? '外装記録' : '開封記録';
-    ctx.fillText(`郵便物 ${label} 報告 ${fmtDate(Date.now())}`, pad, y + 20);
-    y += titleH;
-
-    let idx = 1;
-    for (const b of blocks) {
-      ctx.font = 'bold 16px sans-serif';
-      ctx.fillStyle = '#20242E';
-      ctx.fillText(`${idx}. ${b.headerLine}`, pad, y + 16);
-      y += lineH;
-      ctx.font = '15px sans-serif';
-      ctx.fillStyle = '#3A3F4C';
-      b.wrapped.forEach(line => { ctx.fillText(line, pad + indent, y + 15); y += lineH; });
-      if (b.imgEl) {
-        ctx.drawImage(b.imgEl, pad, y, b.imgW, b.imgH);
-        y += b.imgH + 14;
-      }
-      y += gapAfterEntry;
-      ctx.strokeStyle = '#D6D0C0';
-      ctx.beginPath(); ctx.moveTo(pad, y - gapAfterEntry / 2); ctx.lineTo(W - pad, y - gapAfterEntry / 2); ctx.stroke();
-      idx++;
-    }
+    imgs.forEach(im => {
+      const x = Math.round((W - im.imgW) / 2);
+      ctx.drawImage(im.imgEl, x, y, im.imgW, im.imgH);
+      y += im.imgH + gap;
+    });
 
     return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/jpeg', 0.85));
   }
