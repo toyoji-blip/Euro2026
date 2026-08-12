@@ -487,27 +487,77 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     return `【${parts.subject}】\n\n${parts.body}`;
   }
 
-  function mailReport(t){
+  async function mailReport(t){
     const parts = buildReportParts(t);
     if (!parts) { toast('未報告の記録がありません'); return; }
     const s = loadSettings();
-    const params = [`subject=${encodeURIComponent(parts.subject)}`, `body=${encodeURIComponent(parts.body)}`];
-    if (s.cc) params.push(`cc=${encodeURIComponent(s.cc)}`);
-    const to = (s.to || '').trim(); // do NOT encode: '@' and ',' must stay literal in the mailto address part
-    const url = `mailto:${to}?${params.join('&')}`;
-    window.location.href = url;
+
+    // 画像を生成してWeb Share APIで送る（テキスト＋画像ファイル）
+    toast('画像を準備しています…');
+    try {
+      const blob = await composeReportImage(t);
+      const filename = `postlog_${t}_${Date.now()}.jpg`;
+      const params = [`subject=${encodeURIComponent(parts.subject)}`, `body=${encodeURIComponent(parts.body)}`];
+      if (s.cc) params.push(`cc=${encodeURIComponent(s.cc)}`);
+      const mailUrl = `mailto:${encodeURIComponent(s.to || '')}?${params.join('&')}`;
+
+      if (blob && navigator.canShare) {
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        if (navigator.canShare({ files: [file] })) {
+          // 共有シートで画像を共有（メールアプリを選べる）
+          await navigator.share({
+            files: [file],
+            title: parts.subject,
+            text: parts.body,
+          });
+          return;
+        }
+      }
+      // フォールバック：画像なしのmailto
+      window.location.href = mailUrl;
+    } catch(e) {
+      // キャンセルまたはエラー時はmailtoにフォールバック
+      const params = [`subject=${encodeURIComponent(parts.subject)}`, `body=${encodeURIComponent(parts.body)}`];
+      if (s.cc) params.push(`cc=${encodeURIComponent(s.cc)}`);
+      window.location.href = `mailto:${encodeURIComponent(s.to || '')}?${params.join('&')}`;
+    }
   }
 
-  function whatsappReport(t){
+  async function whatsappReport(t){
     const parts = buildReportParts(t);
     if (!parts) { toast('未報告の記録がありません'); return; }
     const s = loadSettings();
     const text = `${parts.subject}\n\n${parts.body}`;
-    const num = (s.whatsapp || '').replace(/[^\d]/g, '');
-    const url = num
-      ? `https://wa.me/${num}?text=${encodeURIComponent(text)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+
+    toast('画像を準備しています…');
+    try {
+      const blob = await composeReportImage(t);
+      const filename = `postlog_${t}_${Date.now()}.jpg`;
+
+      if (blob && navigator.canShare) {
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: parts.subject,
+            text: text,
+          });
+          return;
+        }
+      }
+      // フォールバック：テキストのみWhatsApp
+      const num = (s.whatsapp || '').replace(/[^\d]/g, '');
+      const url = num
+        ? `https://wa.me/${num}?text=${encodeURIComponent(text)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    } catch(e) {
+      const num = (s.whatsapp || '').replace(/[^\d]/g, '');
+      const url = num
+        ? `https://wa.me/${num}?text=${encodeURIComponent(text)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
   }
 
   function loadImageEl(src){
@@ -882,10 +932,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
           <div class="modal-title">${tab === 'envelope' ? '外装記録' : '開封記録'}のレポート</div>
           <textarea class="report-text" id="report-text" readonly>${text || '未報告の記録はありません。'}</textarea>
           ${!hasDest ? `<p style="font-size:11px;color:var(--ink-soft);margin:8px 0 0 0;">宛先・CC・WhatsApp番号が未設定です。⚙データ管理から設定しておくと、件名と宛先が自動で入ります。</p>` : ''}
-          <div class="modal-actions">
-            <button class="btn-ghost" id="report-copy">コピー</button>
-            <button class="btn-ghost" id="report-share">🖼 リスト+写真を1枚の画像にして送る</button>
-          </div>
+          <p style="font-size:11px;color:var(--ink-soft);margin:6px 0 0 0;">※ 写真はメール・WhatsApp送信後に共有シートから添付できます。</p>
           <div class="modal-actions">
             <button class="btn-primary" id="report-mail">✉️ メールで送信</button>
             <button class="btn-primary" id="report-whatsapp" style="background:#25D366;color:#0b3d20;">💬 WhatsApp</button>
@@ -1014,10 +1061,6 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
       else handleSaveOpened();
     };
 
-    const copyBtn = root.querySelector('#report-copy');
-    if (copyBtn) copyBtn.onclick = () => copyReport(tab);
-    const shareBtn = root.querySelector('#report-share');
-    if (shareBtn) shareBtn.onclick = () => shareReport(tab);
     const mailBtn = root.querySelector('#report-mail');
     if (mailBtn) mailBtn.onclick = () => mailReport(tab);
     const waBtn = root.querySelector('#report-whatsapp');
