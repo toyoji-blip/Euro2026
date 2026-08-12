@@ -940,6 +940,9 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
           <div class="modal-actions">
             <button class="btn-ghost" id="report-markall" style="flex:1">送信済みとして全て「報告済み」にする</button>
           </div>
+          <div class="modal-actions">
+            <button class="btn-ghost" id="report-close" style="flex:1">閉じる</button>
+          </div>
         </div>
       </div>`;
   }
@@ -1066,7 +1069,9 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     const waBtn = root.querySelector('#report-whatsapp');
     if (waBtn) waBtn.onclick = () => whatsappReport(tab);
     const markAllBtn = root.querySelector('#report-markall');
-    if (markAllBtn) markAllBtn.onclick = () => { markAllReported(tab); reportModalOpen = false; };
+    if (markAllBtn) markAllBtn.onclick = () => { markAllReported(tab); reportModalOpen = false; render(); };
+    const reportCloseBtn = root.querySelector('#report-close');
+    if (reportCloseBtn) reportCloseBtn.onclick = () => { reportModalOpen = false; render(); };
 
     const settingsSaveBtn = root.querySelector('#settings-save-btn');
     if (settingsSaveBtn) settingsSaveBtn.onclick = () => {
