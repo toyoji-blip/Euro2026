@@ -198,6 +198,8 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   let modalMode = null; // 'add-envelope' | 'add-opened' | 'edit-envelope' | 'edit-opened'
   let draft = { photo: null, sender: '', memo: '', ocrText: '', relatedId: null, openRequested: false, editId: null };
   let dataModalOpen = false;
+  let importPreviewOpen = false;
+  let importPreviewData = null; // { envelope: [...], opened: [...] }
 
   const KEY = (t, id) => `postlog:${t}:${id}`;
   const IDX = (t) => `postlog:${t}:index`;
@@ -644,12 +646,15 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     toast('報告済みにしました');
   }
 
-  function entryCardHtml(t, e){
+  function entryCardHtml(t, e, opts){
+    opts = opts || {};
+    const readOnly = !!opts.readOnly;
+    const envelopeSource = opts.envelopeSource || data.envelope;
     const thumb = e.photo
       ? `<img class="entry-thumb" src="${e.photo}" alt="">`
       : `<div class="entry-thumb placeholder">✉</div>`;
     const title = t === 'envelope' ? e.sender : (() => {
-      const rel = data.envelope.find(x => x.id === e.relatedId);
+      const rel = envelopeSource.find(x => x.id === e.relatedId);
       return rel ? `開封: ${rel.sender}` : '開封記録';
     })();
     const tags = [];
@@ -669,13 +674,14 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
           </div>
           ${e.memo ? `<div class="entry-memo">${e.memo}</div>` : ''}
           <div class="entry-tags">${tags.join('')}</div>
+          ${readOnly ? '' : `
           <div class="entry-actions">
             ${!e.reported
               ? `<button class="mini-btn" data-act="report" data-t="${t}" data-id="${e.id}">報告済みにする</button>`
               : `<button class="mini-btn" data-act="unreport" data-t="${t}" data-id="${e.id}">未報告に戻す</button>`}
             <button class="mini-btn" data-act="edit" data-t="${t}" data-id="${e.id}">編集</button>
             <button class="mini-btn danger" data-act="delete" data-t="${t}" data-id="${e.id}">削除</button>
-          </div>
+          </div>`}
         </div>
       </div>`;
   }
@@ -784,8 +790,38 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
             <button class="btn-ghost" id="clear-exported-btn" style="width:100%; ${exportedCount ? '' : 'opacity:0.4'}" ${exportedCount ? '' : 'disabled'}>🗑 書き出し済み ${exportedCount}件を削除</button>
           </div>
 
+          <div class="data-section">
+            <h4>④ 書き出したJSONを確認・復元</h4>
+            <p>②で保存したJSONファイルを選ぶと、写真付きの一覧としてこの場で確認できます。読み込んだあと「今のリストに復元する」を押せば、消えてしまった記録の復旧にも使えます。</p>
+            <input type="file" accept="application/json" id="import-file" style="display:none">
+            <button class="btn-ghost" id="import-btn" style="width:100%">📂 JSONファイルを選んで確認</button>
+          </div>
+
           <div class="modal-actions">
             <button class="btn-ghost" id="data-close" style="flex:1">閉じる</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function importPreviewHtml(){
+    if (!importPreviewOpen || !importPreviewData) return '';
+    const env = importPreviewData.envelope || [];
+    const opn = importPreviewData.opened || [];
+    const total = env.length + opn.length;
+    const cards = [
+      ...env.map(e => entryCardHtml('envelope', e, { readOnly: true, envelopeSource: env })),
+      ...opn.map(e => entryCardHtml('opened', e, { readOnly: true, envelopeSource: env }))
+    ].join('');
+    return `
+      <div class="modal-veil" data-close="import-veil">
+        <div class="modal-sheet" data-stop="1">
+          <div class="modal-title">読み込んだJSONの内容（${total}件）</div>
+          <p style="font-size:11px;color:var(--ink-soft);margin:-6px 0 12px 0;">これはプレビューです。現在のリストには反映されていません。</p>
+          <div class="list">${cards || '<div class="empty-state">記録がありません</div>'}</div>
+          <div class="modal-actions">
+            <button class="btn-ghost" id="import-close" style="flex:1">閉じる</button>
+            <button class="btn-primary" id="import-restore" style="flex:1">この内容を今のリストに復元する</button>
           </div>
         </div>
       </div>`;
@@ -828,6 +864,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
       ${modalHtml()}
       ${reportModalHtml()}
       ${dataModalHtml()}
+      ${importPreviewHtml()}
     `;
     bindEvents();
   }
@@ -888,11 +925,53 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     const dataCloseBtn = root.querySelector('#data-close');
     if (dataCloseBtn) dataCloseBtn.onclick = () => { dataModalOpen = false; render(); };
 
+    const importBtn = root.querySelector('#import-btn');
+    const importFileInput = root.querySelector('#import-file');
+    if (importBtn && importFileInput) {
+      importBtn.onclick = () => importFileInput.click();
+      importFileInput.onchange = () => {
+        const file = importFileInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(reader.result);
+            importPreviewData = { envelope: parsed.envelope || [], opened: parsed.opened || [] };
+            importPreviewOpen = true;
+            dataModalOpen = false;
+            render();
+          } catch(e) {
+            toast('JSONの読み込みに失敗しました');
+          }
+        };
+        reader.readAsText(file);
+      };
+    }
+    const importCloseBtn = root.querySelector('#import-close');
+    if (importCloseBtn) importCloseBtn.onclick = () => { importPreviewOpen = false; render(); };
+    const importRestoreBtn = root.querySelector('#import-restore');
+    if (importRestoreBtn) importRestoreBtn.onclick = () => {
+      if (!confirm('読み込んだ記録を今のリストに追加します。よろしいですか？')) return;
+      let addedCount = 0, failedCount = 0;
+      for (const t of ['envelope', 'opened']) {
+        for (const e of (importPreviewData[t] || [])) {
+          const exists = data[t].some(x => x.id === e.id);
+          if (exists) continue;
+          const ok = saveEntry(t, e);
+          if (ok) { data[t].unshift(e); addedCount++; } else { failedCount++; }
+        }
+      }
+      importPreviewOpen = false;
+      render();
+      toast(failedCount ? `${addedCount}件復元（${failedCount}件は容量不足で失敗）` : `${addedCount}件復元しました`);
+    };
+
     root.querySelectorAll('[data-close]').forEach(v => v.onclick = (ev) => {
       if (ev.target !== v) return;
       if (v.dataset.close === 'veil') closeModal();
       if (v.dataset.close === 'report-veil') { reportModalOpen = false; render(); }
       if (v.dataset.close === 'data-veil') { dataModalOpen = false; render(); }
+      if (v.dataset.close === 'import-veil') { importPreviewOpen = false; render(); }
     });
 
     const captureBtn = root.querySelector('#f-capture-btn');
