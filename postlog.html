@@ -449,45 +449,183 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     toast('書き出し済みの記録を削除しました');
   }
 
-  function buildReportText(t){
+  const SETTINGS_KEY = 'postlog_v1__settings';
+  function loadSettings(){
+    try { const raw = localStorage.getItem(SETTINGS_KEY); return raw ? JSON.parse(raw) : { to: '', cc: '', whatsapp: '' }; }
+    catch(e) { return { to: '', cc: '', whatsapp: '' }; }
+  }
+  function saveSettings(s){
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); return true; } catch(e) { return false; }
+  }
+
+  function buildReportParts(t){
     const list = unreportedEntries(t);
-    if (!list.length) return '';
+    if (!list.length) return null;
     const label = t === 'envelope' ? '外装記録' : '開封記録';
-    let out = `【郵便物 ${label} 報告】${fmtDate(Date.now())}\n\n`;
+    const subject = `郵便物 ${label} 報告 ${fmtDate(Date.now())}`;
+    let body = '';
     list.forEach((e, i) => {
-      out += `${i+1}. ${fmtDate(e.createdAt)}\n`;
+      body += `${i+1}. ${fmtDate(e.createdAt)}\n`;
       if (t === 'envelope') {
-        out += `   差出人: ${e.sender}\n`;
-        if (e.openRequested) out += `   → 開封依頼あり\n`;
+        body += `   差出人: ${e.sender}\n`;
+        if (e.openRequested) body += `   → 開封依頼あり\n`;
       } else {
         const rel = data.envelope.find(x => x.id === e.relatedId);
-        out += `   対応: ${rel ? rel.sender : '(不明)'}\n`;
+        body += `   対応: ${rel ? rel.sender : '(不明)'}\n`;
       }
-      if (e.memo) out += `   メモ: ${e.memo}\n`;
-      out += '\n';
+      if (e.memo) body += `   メモ: ${e.memo}\n`;
+      body += '\n';
     });
-    return out;
+    return { subject, body: body.trim() };
+  }
+
+  function buildReportText(t){
+    const parts = buildReportParts(t);
+    if (!parts) return '';
+    return `【${parts.subject}】\n\n${parts.body}`;
+  }
+
+  function mailReport(t){
+    const parts = buildReportParts(t);
+    if (!parts) { toast('未報告の記録がありません'); return; }
+    const s = loadSettings();
+    const params = [`subject=${encodeURIComponent(parts.subject)}`, `body=${encodeURIComponent(parts.body)}`];
+    if (s.cc) params.push(`cc=${encodeURIComponent(s.cc)}`);
+    const url = `mailto:${encodeURIComponent(s.to || '')}?${params.join('&')}`;
+    window.location.href = url;
+  }
+
+  function whatsappReport(t){
+    const parts = buildReportParts(t);
+    if (!parts) { toast('未報告の記録がありません'); return; }
+    const s = loadSettings();
+    const text = `${parts.subject}\n\n${parts.body}`;
+    const num = (s.whatsapp || '').replace(/[^\d]/g, '');
+    const url = num
+      ? `https://wa.me/${num}?text=${encodeURIComponent(text)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  }
+
+  function loadImageEl(src){
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  function wrapLine(ctx, text, maxWidth){
+    const lines = [];
+    let cur = '';
+    for (const ch of text) {
+      const test = cur + ch;
+      if (ctx.measureText(test).width > maxWidth && cur) { lines.push(cur); cur = ch; }
+      else { cur = test; }
+    }
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [''];
+  }
+
+  async function composeReportImage(t){
+    const list = unreportedEntries(t);
+    if (!list.length) return null;
+    const W = 720, pad = 24, indent = 14, lineH = 25, titleH = 56, gapAfterEntry = 26;
+    const maxTextW = W - pad - indent;
+    const measure = document.createElement('canvas').getContext('2d');
+
+    const blocks = [];
+    for (const e of list) {
+      let imgEl = null, imgW = 0, imgH = 0;
+      if (e.photo) {
+        try {
+          imgEl = await loadImageEl(e.photo);
+          const scale = Math.min(1, (W - pad * 2) / imgEl.width);
+          imgW = Math.round(imgEl.width * scale);
+          imgH = Math.round(imgEl.height * scale);
+        } catch(e) { imgEl = null; }
+      }
+      const headerLine = fmtDate(e.createdAt);
+      const subLines = [];
+      if (t === 'envelope') {
+        subLines.push(`差出人: ${e.sender}`);
+        if (e.openRequested) subLines.push('→ 開封依頼あり');
+      } else {
+        const rel = data.envelope.find(x => x.id === e.relatedId);
+        subLines.push(`対応: ${rel ? rel.sender : '(不明)'}`);
+      }
+      if (e.memo) subLines.push(`メモ: ${e.memo}`);
+
+      measure.font = '15px sans-serif';
+      const wrapped = [];
+      subLines.forEach(l => wrapped.push(...wrapLine(measure, l, maxTextW)));
+
+      blocks.push({ headerLine, wrapped, imgEl, imgW, imgH });
+    }
+
+    let totalH = titleH + pad;
+    blocks.forEach(b => {
+      totalH += lineH; // header
+      totalH += b.wrapped.length * lineH;
+      if (b.imgEl) totalH += b.imgH + 14;
+      totalH += gapAfterEntry;
+    });
+    totalH += pad;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = Math.round(totalH);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, canvas.height);
+
+    let y = pad;
+    ctx.fillStyle = '#20242E';
+    ctx.font = 'bold 20px sans-serif';
+    const label = t === 'envelope' ? '外装記録' : '開封記録';
+    ctx.fillText(`郵便物 ${label} 報告 ${fmtDate(Date.now())}`, pad, y + 20);
+    y += titleH;
+
+    let idx = 1;
+    for (const b of blocks) {
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillStyle = '#20242E';
+      ctx.fillText(`${idx}. ${b.headerLine}`, pad, y + 16);
+      y += lineH;
+      ctx.font = '15px sans-serif';
+      ctx.fillStyle = '#3A3F4C';
+      b.wrapped.forEach(line => { ctx.fillText(line, pad + indent, y + 15); y += lineH; });
+      if (b.imgEl) {
+        ctx.drawImage(b.imgEl, pad, y, b.imgW, b.imgH);
+        y += b.imgH + 14;
+      }
+      y += gapAfterEntry;
+      ctx.strokeStyle = '#D6D0C0';
+      ctx.beginPath(); ctx.moveTo(pad, y - gapAfterEntry / 2); ctx.lineTo(W - pad, y - gapAfterEntry / 2); ctx.stroke();
+      idx++;
+    }
+
+    return new Promise(resolve => canvas.toBlob(b => resolve(b), 'image/jpeg', 0.85));
   }
 
   async function shareReport(t){
-    const text = buildReportText(t);
-    if (!text) { toast('未報告の記録がありません'); return; }
     const list = unreportedEntries(t);
+    if (!list.length) { toast('未報告の記録がありません'); return; }
+    toast('画像を作成しています…');
     try {
-      if (navigator.share) {
-        const files = [];
-        for (const e of list) {
-          if (e.photo) {
-            const res = await fetch(e.photo); const blob = await res.blob();
-            files.push(new File([blob], `${e.id}.jpg`, { type: 'image/jpeg' }));
-          }
-        }
-        const shareData = { text };
-        if (files.length && navigator.canShare && navigator.canShare({ files })) shareData.files = files;
-        await navigator.share(shareData);
+      const blob = await composeReportImage(t);
+      if (!blob) { toast('未報告の記録がありません'); return; }
+      const parts = buildReportParts(t);
+      const filename = `postlog-${t}-${new Date().toISOString().slice(0,10)}.jpg`;
+      const file = new File([blob], filename, { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text: parts.subject });
       } else {
-        await navigator.clipboard.writeText(text);
-        toast('共有非対応のためコピーしました');
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        toast('共有非対応のため画像をダウンロードしました');
       }
     } catch(e) { /* user cancelled or unsupported */ }
   }
@@ -605,10 +743,29 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     if (!dataModalOpen) return '';
     const totalCount = data.envelope.length + data.opened.length;
     const exportedCount = data.envelope.filter(e=>e.exported).length + data.opened.filter(e=>e.exported).length;
+    const s = loadSettings();
     return `
       <div class="modal-veil" data-close="data-veil">
         <div class="modal-sheet" data-stop="1">
           <div class="modal-title">データ管理</div>
+
+          <div class="data-section">
+            <h4>① 送信先の設定</h4>
+            <p>ここで設定した宛先・CC・WhatsApp番号が、レポート送信時に自動で入力されます。件名も自動で付きます（本文の1行目に件名を書く必要はありません）。</p>
+            <div class="field" style="margin-bottom:8px">
+              <label>宛先メール（To）</label>
+              <input type="text" id="s-to" value="${s.to || ''}" placeholder="landlord@example.com">
+            </div>
+            <div class="field" style="margin-bottom:8px">
+              <label>CC（任意・複数はカンマ区切り）</label>
+              <input type="text" id="s-cc" value="${s.cc || ''}" placeholder="cc1@example.com, cc2@example.com">
+            </div>
+            <div class="field" style="margin-bottom:10px">
+              <label>WhatsApp番号（任意・国番号から、記号なし）</label>
+              <input type="text" id="s-whatsapp" value="${s.whatsapp || ''}" placeholder="例: 4915112345678">
+            </div>
+            <button class="btn-primary" id="settings-save-btn" style="width:100%">設定を保存</button>
+          </div>
 
           <div class="data-section">
             <h4>保存の仕組み</h4>
@@ -616,14 +773,14 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
           </div>
 
           <div class="data-section">
-            <h4>① 書き出す</h4>
+            <h4>② 書き出す</h4>
             <p>全記録（写真込み）を1つのJSONファイルにまとめます。iOSの共有シートからGoogle Drive・ファイルアプリ・メールなどに保存してください。保存先はあなたの管理下に置かれます。</p>
             <button class="btn-primary" id="export-btn" style="width:100%">📦 全${totalCount}件を書き出す</button>
           </div>
 
           <div class="data-section">
-            <h4>② 書き出し済みを削除</h4>
-            <p>①で書き出し済みの記録（現在 ${exportedCount}件）だけを、このアプリの記録から削除します。まだ書き出していない記録は消えません。</p>
+            <h4>③ 書き出し済みを削除</h4>
+            <p>②で書き出し済みの記録（現在 ${exportedCount}件）だけを、このアプリの記録から削除します。まだ書き出していない記録は消えません。</p>
             <button class="btn-ghost" id="clear-exported-btn" style="width:100%; ${exportedCount ? '' : 'opacity:0.4'}" ${exportedCount ? '' : 'disabled'}>🗑 書き出し済み ${exportedCount}件を削除</button>
           </div>
 
@@ -678,14 +835,21 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   function reportModalHtml(){
     if (!reportModalOpen) return '';
     const text = buildReportText(tab);
+    const s = loadSettings();
+    const hasDest = s.to || s.cc || s.whatsapp;
     return `
       <div class="modal-veil" data-close="report-veil">
         <div class="modal-sheet" data-stop="1">
           <div class="modal-title">${tab === 'envelope' ? '外装記録' : '開封記録'}のレポート</div>
           <textarea class="report-text" id="report-text" readonly>${text || '未報告の記録はありません。'}</textarea>
+          ${!hasDest ? `<p style="font-size:11px;color:var(--ink-soft);margin:8px 0 0 0;">宛先・CC・WhatsApp番号が未設定です。⚙データ管理から設定しておくと、件名と宛先が自動で入ります。</p>` : ''}
           <div class="modal-actions">
             <button class="btn-ghost" id="report-copy">コピー</button>
-            <button class="btn-primary" id="report-share">共有 / 送信</button>
+            <button class="btn-ghost" id="report-share">🖼 リスト+写真を1枚の画像にして送る</button>
+          </div>
+          <div class="modal-actions">
+            <button class="btn-primary" id="report-mail">✉️ メールで送信</button>
+            <button class="btn-primary" id="report-whatsapp" style="background:#25D366;color:#0b3d20;">💬 WhatsApp</button>
           </div>
           <div class="modal-actions">
             <button class="btn-ghost" id="report-markall" style="flex:1">送信済みとして全て「報告済み」にする</button>
@@ -768,8 +932,21 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     if (copyBtn) copyBtn.onclick = () => copyReport(tab);
     const shareBtn = root.querySelector('#report-share');
     if (shareBtn) shareBtn.onclick = () => shareReport(tab);
+    const mailBtn = root.querySelector('#report-mail');
+    if (mailBtn) mailBtn.onclick = () => mailReport(tab);
+    const waBtn = root.querySelector('#report-whatsapp');
+    if (waBtn) waBtn.onclick = () => whatsappReport(tab);
     const markAllBtn = root.querySelector('#report-markall');
     if (markAllBtn) markAllBtn.onclick = () => { markAllReported(tab); reportModalOpen = false; };
+
+    const settingsSaveBtn = root.querySelector('#settings-save-btn');
+    if (settingsSaveBtn) settingsSaveBtn.onclick = () => {
+      const to = root.querySelector('#s-to').value.trim();
+      const cc = root.querySelector('#s-cc').value.trim();
+      const whatsapp = root.querySelector('#s-whatsapp').value.trim();
+      const ok = saveSettings({ to, cc, whatsapp });
+      toast(ok ? '設定を保存しました' : '保存に失敗しました');
+    };
   }
 
   // Fonts
