@@ -306,33 +306,31 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
     <div class="card-hdr">💱 両替・出金を記録</div>
     <div class="card-body">
       <label>出金元</label>
-      <div class="pay-pills" id="fx-source-pills">
-        <button class="pay-pill" data-val="日本銀行" onclick="selectFxSource(this)">🏦 日本銀行</button>
-        <button class="pay-pill" data-val="米国銀行" onclick="selectFxSource(this)">🏦 米国銀行</button>
-        <button class="pay-pill" data-val="クレジットカード" onclick="selectFxSource(this)">💳 クレカ</button>
-      </div>
+      <div class="pay-pills" id="fx-source-pills"></div>
 
       <div class="row2">
         <div>
           <label>出金通貨</label>
-          <select id="fx-from-cur"></select>
+          <select id="fx-from-cur" onchange="updateFxRatePreview()"></select>
         </div>
         <div>
           <label>出金額</label>
-          <input type="number" id="fx-from-amt" placeholder="0" inputmode="decimal">
+          <input type="number" id="fx-from-amt" placeholder="0" inputmode="decimal" oninput="updateFxRatePreview()">
         </div>
       </div>
 
       <div class="row2">
         <div>
           <label>受取通貨</label>
-          <select id="fx-to-cur"></select>
+          <select id="fx-to-cur" onchange="updateFxRatePreview()"></select>
         </div>
         <div>
           <label>受取額</label>
-          <input type="number" id="fx-to-amt" placeholder="0" inputmode="decimal">
+          <input type="number" id="fx-to-amt" placeholder="0" inputmode="decimal" oninput="updateFxRatePreview()">
         </div>
       </div>
+
+      <div id="fx-rate-preview" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px"></div>
 
       <label>メモ</label>
       <textarea id="fx-memo" placeholder="ATM手数料など"></textarea>
@@ -396,6 +394,19 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
         <button class="btn btn-accent btn-sm" onclick="addCard()">追加</button>
       </div>
       <div class="card-tag" id="cardTagList"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">🏦 出金元（銀行/口座）設定</div>
+    <div class="card-body">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">両替・出金の「出金元」に表示する銀行/口座を登録（通貨は自動選択の初期値になります）</p>
+      <div class="row2" style="margin-bottom:8px">
+        <input type="text" id="newBankName" placeholder="例：Wise">
+        <select id="newBankCurrency"></select>
+      </div>
+      <button class="btn btn-accent btn-sm btn-full" onclick="addBank()">追加</button>
+      <div class="card-tag" id="bankTagList"></div>
     </div>
   </div>
 
@@ -497,6 +508,50 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
   </div>
 </div>
 
+<!-- ========== 両替/出金 編集モーダル ========== -->
+<div class="modal-overlay" id="editFxModal" onclick="closeEditFxModal(event)">
+  <div class="modal-sheet">
+    <div class="modal-title">
+      ✏️ 両替・出金を修正
+      <button class="modal-close" onclick="closeEditFxModal()">✕</button>
+    </div>
+
+    <input type="hidden" id="edit-fx-id">
+
+    <label>出金元</label>
+    <div class="pay-pills" id="edit-fx-source-pills"></div>
+
+    <div class="row2">
+      <div>
+        <label>出金通貨</label>
+        <select id="edit-fx-from-cur" onchange="updateEditFxRatePreview()"></select>
+      </div>
+      <div>
+        <label>出金額</label>
+        <input type="number" id="edit-fx-from-amt" placeholder="0" inputmode="decimal" oninput="updateEditFxRatePreview()">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div>
+        <label>受取通貨</label>
+        <select id="edit-fx-to-cur" onchange="updateEditFxRatePreview()"></select>
+      </div>
+      <div>
+        <label>受取額</label>
+        <input type="number" id="edit-fx-to-amt" placeholder="0" inputmode="decimal" oninput="updateEditFxRatePreview()">
+      </div>
+    </div>
+
+    <div id="edit-fx-rate-preview" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px"></div>
+
+    <label>メモ</label>
+    <textarea id="edit-fx-memo" placeholder="ATM手数料など"></textarea>
+
+    <button class="btn btn-accent btn-full" style="margin-top:14px" onclick="saveEditFx()">💾 保存する</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -506,27 +561,34 @@ const ALL_CURRENCIES = ['JPY','EUR','USD','CHF','GBP','CNY','HKD','SGD','THB','K
 // 現在有効な通貨リストは state.currencies で管理
 const CATEGORIES = ['食事','交通','宿泊','娯楽教養','日用消耗品','嗜好品','飲酒','通信','治療薬品','衣料','その他'];
 const DEFAULT_CARDS = ['Cash'];
+const DEFAULT_BANKS = [
+  { name: 'Wise',     currency: 'JPY' },
+  { name: 'SONY',     currency: 'JPY' },
+  { name: 'Citizens', currency: 'USD' },
+];
 
 // ===== STATE =====
 let state = {
   expenses: [],   // {id, ts, amount, currency, category, payment, country, city, memo}
-  fxRecords: [],  // {id, ts, source, fromCur, fromAmt, toCur, toAmt, memo}
+  fxRecords: [],  // {id, ts, source, fromCur, fromAmt, toCur, toAmt, rate, memo}
   rates: {},      // {EUR:162, ...} JPY基準
   rateUpdated: null,
   cards: [...DEFAULT_CARDS],
   currencies: [...DEFAULT_CURRENCIES], // 使用通貨リスト
+  banks: DEFAULT_BANKS.map(b => ({...b})), // 出金元（銀行/口座）リスト
 };
 
 // ===== 選択状態 =====
 let selCurrency = 'EUR';
 let selCategory = '食事';
 let selPayment  = 'Cash';
-let selFxSource = '日本銀行';
+let selFxSource = '';
 
 // 編集モーダル用
 let editSelCurrency = 'EUR';
 let editSelCategory = '食事';
 let editSelPayment  = 'Cash';
+let editFxSource = '';
 
 // ===== INIT =====
 function init() {
@@ -538,6 +600,7 @@ function init() {
   }
   if (!state.cards || state.cards.length === 0) state.cards = [...DEFAULT_CARDS];
   if (!state.currencies || state.currencies.length === 0) state.currencies = [...DEFAULT_CURRENCIES];
+  if (!state.banks || state.banks.length === 0) state.banks = DEFAULT_BANKS.map(b => ({...b}));
   // state.ratesから登録通貨にない古いレートを削除
   Object.keys(state.rates).forEach(cur => {
     if (!state.currencies.includes(cur)) delete state.rates[cur];
@@ -547,8 +610,10 @@ function init() {
   renderCatPills();
   renderPayPills();
   renderFxCurrencySelects();
+  renderFxSourcePills();
   renderCards();
   renderCurrencySettings();
+  renderBankSettings();
   renderRateGrid();
   renderSummary();
   renderList();
@@ -636,11 +701,27 @@ function renderPayPills() {
 }
 function pickPay(c) { selPayment = c; renderPayPills(); }
 
-// ===== FX SOURCE =====
-function selectFxSource(btn) {
-  document.querySelectorAll('#fx-source-pills .pay-pill').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  selFxSource = btn.dataset.val;
+// ===== FX SOURCE（銀行/口座） =====
+function renderFxSourcePills() {
+  const el = document.getElementById('fx-source-pills');
+  if (!state.banks || state.banks.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted)">設定タブから出金元（銀行/口座）を登録してください</div>';
+    selFxSource = '';
+    return;
+  }
+  if (!state.banks.some(b => b.name === selFxSource)) selFxSource = state.banks[0].name;
+  el.innerHTML = state.banks.map(b =>
+    `<button class="pay-pill ${b.name===selFxSource?'selected':''}" onclick="selectFxSource('${b.name}')">🏦 ${b.name} (${b.currency})</button>`
+  ).join('');
+}
+function selectFxSource(name) {
+  selFxSource = name;
+  renderFxSourcePills();
+  const bank = state.banks.find(b => b.name === name);
+  if (bank && document.getElementById('fx-from-cur').querySelector(`option[value="${bank.currency}"]`)) {
+    document.getElementById('fx-from-cur').value = bank.currency;
+  }
+  updateFxRatePreview();
 }
 
 // ===== FX CURRENCY SELECTS =====
@@ -651,6 +732,22 @@ function renderFxCurrencySelects() {
   document.getElementById('fx-from-cur').value = state.currencies.includes('JPY') ? 'JPY' : state.currencies[0];
   const toDefault = state.currencies.find(c => c !== 'JPY') || state.currencies[0];
   document.getElementById('fx-to-cur').value = toDefault;
+}
+
+// ===== FX 為替レート自動計算 =====
+function computeFxRate(fromAmt, fromCur, toAmt, toCur) {
+  if (!fromAmt || !toAmt || fromAmt <= 0 || toAmt <= 0) return null;
+  if (fromCur === toCur) return null;
+  return toAmt / fromAmt; // 1 fromCur = X toCur
+}
+function updateFxRatePreview() {
+  const fromAmt = parseFloat(document.getElementById('fx-from-amt').value);
+  const toAmt   = parseFloat(document.getElementById('fx-to-amt').value);
+  const fromCur = document.getElementById('fx-from-cur').value;
+  const toCur   = document.getElementById('fx-to-cur').value;
+  const rate = computeFxRate(fromAmt, fromCur, toAmt, toCur);
+  const el = document.getElementById('fx-rate-preview');
+  el.textContent = rate ? `💹 レート：1 ${fromCur} = ${rate.toLocaleString(undefined,{maximumFractionDigits:4})} ${toCur}` : '';
 }
 
 // ===== ADD EXPENSE =====
@@ -686,12 +783,15 @@ function addFx() {
   const fromCur = document.getElementById('fx-from-cur').value;
   const toCur   = document.getElementById('fx-to-cur').value;
   if (!fromAmt || !toAmt) { showToast('金額を入力してください'); return; }
+  if (!selFxSource) { showToast('出金元を登録・選択してください'); return; }
+
+  const rate = computeFxRate(fromAmt, fromCur, toAmt, toCur);
 
   const fx = {
     id: Date.now() + '_fx',
     ts: new Date().toISOString(),
     source: selFxSource,
-    fromCur, fromAmt, toCur, toAmt,
+    fromCur, fromAmt, toCur, toAmt, rate,
     memo: document.getElementById('fx-memo').value.trim(),
   };
   state.fxRecords.push(fx);
@@ -699,6 +799,7 @@ function addFx() {
   document.getElementById('fx-from-amt').value = '';
   document.getElementById('fx-to-amt').value = '';
   document.getElementById('fx-memo').value = '';
+  document.getElementById('fx-rate-preview').textContent = '';
   showToast('両替/出金を記録しました');
   renderFxList();
 }
@@ -895,17 +996,107 @@ function renderFxList() {
   el.innerHTML = [...state.fxRecords].reverse().map(f => {
     const d = new Date(f.ts);
     const dateStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const rate = (f.rate != null) ? f.rate : computeFxRate(f.fromAmt, f.fromCur, f.toAmt, f.toCur);
+    const rateStr = rate ? `💹 1${f.fromCur} = ${rate.toLocaleString(undefined,{maximumFractionDigits:4})}${f.toCur}` : '';
     return `
       <div class="fx-item">
         <span class="fx-badge">${f.source}</span>
         <div class="fx-info">
           ${f.fromCur} ${f.fromAmt.toLocaleString()} → ${f.toCur} ${f.toAmt.toLocaleString()}
-          <div class="fx-meta">${dateStr}${f.memo?' · '+f.memo:''}</div>
+          <div class="fx-meta">${dateStr}${rateStr?' · '+rateStr:''}${f.memo?' · '+f.memo:''}</div>
         </div>
-        <button class="btn btn-danger btn-sm" onclick="deleteFx('${f.id}')">削除</button>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <button class="btn btn-primary btn-sm" onclick="openEditFxModal('${f.id}')">修正</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteFx('${f.id}')">削除</button>
+        </div>
       </div>
     `;
   }).join('');
+}
+
+// ===== EDIT FX MODAL =====
+function renderEditFxSourcePills() {
+  const el = document.getElementById('edit-fx-source-pills');
+  if (!state.banks || state.banks.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted)">設定タブから出金元（銀行/口座）を登録してください</div>';
+    return;
+  }
+  el.innerHTML = state.banks.map(b =>
+    `<button class="pay-pill ${b.name===editFxSource?'selected':''}" onclick="selectEditFxSource('${b.name}')">🏦 ${b.name} (${b.currency})</button>`
+  ).join('');
+}
+function selectEditFxSource(name) {
+  editFxSource = name;
+  renderEditFxSourcePills();
+  updateEditFxRatePreview();
+}
+function renderEditFxCurrencySelects(fromCur, toCur) {
+  const opts = state.currencies.map(c => `<option value="${c}">${c}</option>`).join('');
+  document.getElementById('edit-fx-from-cur').innerHTML = opts;
+  document.getElementById('edit-fx-to-cur').innerHTML = opts;
+  document.getElementById('edit-fx-from-cur').value = fromCur;
+  document.getElementById('edit-fx-to-cur').value = toCur;
+}
+function updateEditFxRatePreview() {
+  const fromAmt = parseFloat(document.getElementById('edit-fx-from-amt').value);
+  const toAmt   = parseFloat(document.getElementById('edit-fx-to-amt').value);
+  const fromCur = document.getElementById('edit-fx-from-cur').value;
+  const toCur   = document.getElementById('edit-fx-to-cur').value;
+  const rate = computeFxRate(fromAmt, fromCur, toAmt, toCur);
+  const el = document.getElementById('edit-fx-rate-preview');
+  el.textContent = rate ? `💹 レート：1 ${fromCur} = ${rate.toLocaleString(undefined,{maximumFractionDigits:4})} ${toCur}` : '';
+}
+
+function openEditFxModal(id) {
+  const fx = state.fxRecords.find(f => f.id === id);
+  if (!fx) return;
+
+  document.getElementById('edit-fx-id').value = id;
+  document.getElementById('edit-fx-from-amt').value = fx.fromAmt;
+  document.getElementById('edit-fx-to-amt').value = fx.toAmt;
+  document.getElementById('edit-fx-memo').value = fx.memo || '';
+
+  editFxSource = fx.source;
+  renderEditFxSourcePills();
+  renderEditFxCurrencySelects(fx.fromCur, fx.toCur);
+  updateEditFxRatePreview();
+
+  document.getElementById('editFxModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeEditFxModal(event) {
+  if (event && event.target !== document.getElementById('editFxModal')) return;
+  document.getElementById('editFxModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function saveEditFx() {
+  const id = document.getElementById('edit-fx-id').value;
+  const fromAmt = parseFloat(document.getElementById('edit-fx-from-amt').value);
+  const toAmt   = parseFloat(document.getElementById('edit-fx-to-amt').value);
+  const fromCur = document.getElementById('edit-fx-from-cur').value;
+  const toCur   = document.getElementById('edit-fx-to-cur').value;
+  if (!fromAmt || !toAmt) { showToast('金額を入力してください'); return; }
+  if (!editFxSource) { showToast('出金元を選択してください'); return; }
+
+  const idx = state.fxRecords.findIndex(f => f.id === id);
+  if (idx === -1) return;
+
+  const rate = computeFxRate(fromAmt, fromCur, toAmt, toCur);
+
+  state.fxRecords[idx] = {
+    ...state.fxRecords[idx],
+    source: editFxSource,
+    fromCur, fromAmt, toCur, toAmt, rate,
+    memo: document.getElementById('edit-fx-memo').value.trim(),
+  };
+
+  save();
+  document.getElementById('editFxModal').classList.remove('open');
+  document.body.style.overflow = '';
+  renderFxList();
+  showToast('修正しました');
 }
 
 function deleteFx(id) {
@@ -948,6 +1139,47 @@ function renderCards() {
   `).join('');
 }
 
+// ===== BANK (出金元) MANAGEMENT =====
+function renderBankSettings() {
+  const curSel = document.getElementById('newBankCurrency');
+  curSel.innerHTML = state.currencies.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  const el = document.getElementById('bankTagList');
+  if (!state.banks || state.banks.length === 0) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted)">出金元が登録されていません</div>';
+    return;
+  }
+  el.innerHTML = state.banks.map(b => `
+    <span class="card-tag-item">
+      🏦 ${b.name} (${b.currency})
+      <button onclick="deleteBank('${b.name}')" title="削除">✕</button>
+    </span>
+  `).join('');
+}
+
+function addBank() {
+  const nameInput = document.getElementById('newBankName');
+  const name = nameInput.value.trim();
+  const currency = document.getElementById('newBankCurrency').value;
+  if (!name) { showToast('銀行/口座名を入力してください'); return; }
+  if (state.banks.some(b => b.name === name)) { showToast('すでに登録済みです'); return; }
+  state.banks.push({ name, currency });
+  save();
+  nameInput.value = '';
+  renderBankSettings();
+  renderFxSourcePills();
+  showToast(`${name} を追加しました`);
+}
+
+function deleteBank(name) {
+  state.banks = state.banks.filter(b => b.name !== name);
+  if (selFxSource === name) selFxSource = state.banks[0] ? state.banks[0].name : '';
+  save();
+  renderBankSettings();
+  renderFxSourcePills();
+  showToast(`${name} を削除しました`);
+}
+
 // ===== CURRENCY MANAGEMENT =====
 const LOCKED_CURRENCIES = ['JPY','EUR','USD'];
 
@@ -978,6 +1210,7 @@ function addCurrency() {
   renderCurrencySettings();
   renderCurrencyPills();
   renderFxCurrencySelects();
+  renderBankSettings();
   renderRateGrid();   // 追加直後にグリッドへ反映（レートは「取得中…」表示）
   fetchRates();       // API取得後に実レートで上書き
   showToast(`${val} を追加しました`);
@@ -992,6 +1225,7 @@ function deleteCurrency(cur) {
   renderCurrencySettings();
   renderCurrencyPills();
   renderFxCurrencySelects();
+  renderBankSettings();
   showToast(`${cur} を削除しました`);
 }
 
@@ -1135,7 +1369,8 @@ function resetAll() {
     expenses:[], fxRecords:[],
     rates:{EUR:162, USD:150},
     rateUpdated: null, cards:[...DEFAULT_CARDS],
-    currencies:[...DEFAULT_CURRENCIES]
+    currencies:[...DEFAULT_CURRENCIES],
+    banks: DEFAULT_BANKS.map(b => ({...b})),
   };
   save(); init();
   showToast('リセットしました');
