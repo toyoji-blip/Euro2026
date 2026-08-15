@@ -262,6 +262,7 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
   <button data-target="sec-summary">📊 累計</button>
   <button data-target="sec-list">📋 一覧</button>
   <button data-target="sec-settings">⚙ 設定</button>
+  <button onclick="location.reload()" title="ページを再読込">🔄 リロード</button>
 </nav>
 
 <!-- ========== 支出入力 ========== -->
@@ -270,10 +271,21 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
     <div class="card-hdr">💴 支出を記録</div>
     <div class="card-body">
       <label>金額</label>
-      <input type="number" id="exp-amount" placeholder="0.00" step="0.01" inputmode="decimal">
+      <input type="number" id="exp-amount" placeholder="0.00" step="0.01" inputmode="decimal" oninput="updateExpJpyPreview()">
 
       <label>通貨</label>
       <div class="currency-pills" id="exp-currency-pills"></div>
+
+      <div class="row2" id="exp-rate-row">
+        <div>
+          <label>為替レート（1通貨=何円）</label>
+          <input type="number" id="exp-rate" placeholder="150" step="0.0001" inputmode="decimal" oninput="updateExpJpyPreview()">
+        </div>
+        <div>
+          <label>円換算額</label>
+          <div id="exp-jpy-preview" style="padding:9px 10px;font-size:15px;font-weight:700;color:var(--accent)">¥0</div>
+        </div>
+      </div>
 
       <label>カテゴリ</label>
       <div class="cat-pills" id="exp-cat-pills"></div>
@@ -479,10 +491,21 @@ textarea { resize: vertical; min-height: 52px; font-size: 13px; }
     <input type="hidden" id="edit-id">
 
     <label>金額</label>
-    <input type="number" id="edit-amount" placeholder="0.00" step="0.01" inputmode="decimal">
+    <input type="number" id="edit-amount" placeholder="0.00" step="0.01" inputmode="decimal" oninput="updateEditExpJpyPreview()">
 
     <label>通貨</label>
     <div class="currency-pills" id="edit-currency-pills"></div>
+
+    <div class="row2" id="edit-exp-rate-row">
+      <div>
+        <label>為替レート（1通貨=何円）</label>
+        <input type="number" id="edit-rate" placeholder="150" step="0.0001" inputmode="decimal" oninput="updateEditExpJpyPreview()">
+      </div>
+      <div>
+        <label>円換算額</label>
+        <div id="edit-exp-jpy-preview" style="padding:9px 10px;font-size:15px;font-weight:700;color:var(--accent)">¥0</div>
+      </div>
+    </div>
 
     <label>カテゴリ</label>
     <div class="cat-pills" id="edit-cat-pills"></div>
@@ -607,6 +630,7 @@ function init() {
   });
 
   renderCurrencyPills();
+  setExpRateFieldForCurrency(selCurrency);
   renderCatPills();
   renderPayPills();
   renderFxCurrencySelects();
@@ -669,6 +693,17 @@ function toJPY(amount, currency) {
   return amount * (state.rates[currency] || 1);
 }
 
+// 支出レコード単位のJPY換算（記録時/編集時の個別レートを優先し、なければ現在の全体レートを使用）
+function jpyOf(exp) {
+  if (exp.currency === 'JPY') return exp.amount;
+  const rate = (exp.rate != null && !isNaN(exp.rate) && exp.rate > 0) ? exp.rate : (state.rates[exp.currency] || 1);
+  return exp.amount * rate;
+}
+function expRateOf(exp) {
+  if (exp.currency === 'JPY') return 1;
+  return (exp.rate != null && !isNaN(exp.rate) && exp.rate > 0) ? exp.rate : (state.rates[exp.currency] || 1);
+}
+
 // ===== CURRENCY PILLS =====
 function getCurrencyList() {
   return [...state.currencies.filter(c => c !== 'JPY'), ...(state.currencies.includes('JPY') ? ['JPY'] : [])];
@@ -681,7 +716,31 @@ function renderCurrencyPills() {
     `<button class="c-pill ${c===selCurrency?'selected':''}" onclick="pickCurrency('${c}')">${c}</button>`
   ).join('');
 }
-function pickCurrency(c) { selCurrency = c; renderCurrencyPills(); }
+function pickCurrency(c) {
+  selCurrency = c;
+  renderCurrencyPills();
+  setExpRateFieldForCurrency(c);
+}
+
+// 通貨に応じてレート入力欄の表示/初期値を切替
+function setExpRateFieldForCurrency(c) {
+  const row = document.getElementById('exp-rate-row');
+  const rateInput = document.getElementById('exp-rate');
+  if (c === 'JPY') {
+    row.style.display = 'none';
+    rateInput.value = 1;
+  } else {
+    row.style.display = '';
+    rateInput.value = state.rates[c] || '';
+  }
+  updateExpJpyPreview();
+}
+function updateExpJpyPreview() {
+  const amount = parseFloat(document.getElementById('exp-amount').value) || 0;
+  const rate = selCurrency === 'JPY' ? 1 : (parseFloat(document.getElementById('exp-rate').value) || 0);
+  const jpy = Math.round(amount * rate);
+  document.getElementById('exp-jpy-preview').textContent = '¥' + jpy.toLocaleString();
+}
 
 // ===== CAT PILLS =====
 function renderCatPills() {
@@ -735,19 +794,28 @@ function renderFxCurrencySelects() {
 }
 
 // ===== FX 為替レート自動計算 =====
+// 慣習として「1外貨 = 何円」の向きで表示する。JPYが絡まない場合はfromCur→toCurのまま。
 function computeFxRate(fromAmt, fromCur, toAmt, toCur) {
-  if (!fromAmt || !toAmt || fromAmt <= 0 || toAmt <= 0) return null;
-  if (fromCur === toCur) return null;
-  return toAmt / fromAmt; // 1 fromCur = X toCur
+  if (!fromAmt || !toAmt || fromAmt <= 0 || toAmt <= 0 || fromCur === toCur) return null;
+  if (toCur === 'JPY') {
+    return { base: fromCur, quote: 'JPY', value: toAmt / fromAmt };
+  }
+  if (fromCur === 'JPY') {
+    return { base: toCur, quote: 'JPY', value: fromAmt / toAmt };
+  }
+  return { base: fromCur, quote: toCur, value: toAmt / fromAmt };
+}
+function formatFxRate(r) {
+  if (!r) return '';
+  return `💹 1${r.base} = ${r.value.toLocaleString(undefined,{maximumFractionDigits:4})}${r.quote}`;
 }
 function updateFxRatePreview() {
   const fromAmt = parseFloat(document.getElementById('fx-from-amt').value);
   const toAmt   = parseFloat(document.getElementById('fx-to-amt').value);
   const fromCur = document.getElementById('fx-from-cur').value;
   const toCur   = document.getElementById('fx-to-cur').value;
-  const rate = computeFxRate(fromAmt, fromCur, toAmt, toCur);
-  const el = document.getElementById('fx-rate-preview');
-  el.textContent = rate ? `💹 レート：1 ${fromCur} = ${rate.toLocaleString(undefined,{maximumFractionDigits:4})} ${toCur}` : '';
+  const r = computeFxRate(fromAmt, fromCur, toAmt, toCur);
+  document.getElementById('fx-rate-preview').textContent = formatFxRate(r);
 }
 
 // ===== ADD EXPENSE =====
@@ -755,11 +823,14 @@ function addExpense() {
   const amount = parseFloat(document.getElementById('exp-amount').value);
   if (!amount || amount <= 0) { showToast('金額を入力してください'); return; }
 
+  const rate = selCurrency === 'JPY' ? null : (parseFloat(document.getElementById('exp-rate').value) || null);
+
   const exp = {
     id: Date.now() + '_' + Math.random().toString(36).slice(2,6),
     ts: new Date().toISOString(),
     amount,
     currency: selCurrency,
+    rate,
     category: selCategory,
     payment: selPayment,
     country: document.getElementById('exp-country').value.trim(),
@@ -771,6 +842,7 @@ function addExpense() {
   save();
   document.getElementById('exp-amount').value = '';
   document.getElementById('exp-memo').value = '';
+  updateExpJpyPreview();
   showToast(`${selCurrency} ${amount.toLocaleString()} を記録しました`);
   renderSummary();
   renderList();
@@ -785,13 +857,14 @@ function addFx() {
   if (!fromAmt || !toAmt) { showToast('金額を入力してください'); return; }
   if (!selFxSource) { showToast('出金元を登録・選択してください'); return; }
 
-  const rate = computeFxRate(fromAmt, fromCur, toAmt, toCur);
+  const rateObj = computeFxRate(fromAmt, fromCur, toAmt, toCur);
 
   const fx = {
     id: Date.now() + '_fx',
     ts: new Date().toISOString(),
     source: selFxSource,
-    fromCur, fromAmt, toCur, toAmt, rate,
+    fromCur, fromAmt, toCur, toAmt,
+    rate: rateObj,
     memo: document.getElementById('fx-memo').value.trim(),
   };
   state.fxRecords.push(fx);
@@ -806,15 +879,17 @@ function addFx() {
 
 // ===== RENDER SUMMARY =====
 function renderSummary() {
-  // 通貨別合計
+  // 通貨別合計（現地通貨の合計とJPY換算合計をそれぞれ集計）
   const byCode = {};
+  const byCodeJPY = {};
   state.expenses.forEach(e => {
     byCode[e.currency] = (byCode[e.currency] || 0) + e.amount;
+    byCodeJPY[e.currency] = (byCodeJPY[e.currency] || 0) + jpyOf(e);
   });
 
-  // JPY総計
+  // JPY総計（各取引の個別レートを反映）
   let totalJPY = 0;
-  Object.entries(byCode).forEach(([cur, amt]) => { totalJPY += toJPY(amt, cur); });
+  state.expenses.forEach(e => { totalJPY += jpyOf(e); });
 
   document.getElementById('totalJPY').textContent = '¥ ' + Math.round(totalJPY).toLocaleString();
 
@@ -834,7 +909,7 @@ function renderSummary() {
         <span class="cur-code">${cur}</span>
         <span>
           <span class="cur-amt">${cur === 'JPY' ? '' : cur+' '}${amt.toLocaleString(undefined,{maximumFractionDigits:2})}</span><br>
-          <span class="cur-jpy">≈ ¥${Math.round(toJPY(amt,cur)).toLocaleString()}</span>
+          <span class="cur-jpy">≈ ¥${Math.round(byCodeJPY[cur]).toLocaleString()}</span>
         </span>
       </div>
     `).join('');
@@ -843,7 +918,7 @@ function renderSummary() {
   // カテゴリ別
   const byCat = {};
   state.expenses.forEach(e => {
-    byCat[e.category] = (byCat[e.category] || 0) + toJPY(e.amount, e.currency);
+    byCat[e.category] = (byCat[e.category] || 0) + jpyOf(e);
   });
   const catEl = document.getElementById('catSummary');
   if (Object.keys(byCat).length === 0) {
@@ -873,13 +948,15 @@ function renderList() {
   el.innerHTML = sorted.map(e => {
     const d = new Date(e.ts);
     const dateStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-    const jpy = Math.round(toJPY(e.amount, e.currency));
+    const jpy = Math.round(jpyOf(e));
+    const rate = expRateOf(e);
     const loc = [e.country, e.city].filter(Boolean).join(' ');
     return `
       <div class="expense-item">
         <div>
           <span class="exp-cat">${e.category}</span>
           <div class="exp-meta">${dateStr}${loc?' · '+loc:''} · ${e.payment}</div>
+          ${e.currency!=='JPY'?`<div class="exp-meta">レート 1${e.currency}=¥${rate.toLocaleString(undefined,{maximumFractionDigits:4})}</div>`:''}
           ${e.memo ? `<div class="exp-meta">${e.memo}</div>` : ''}
         </div>
         <div style="text-align:right;min-width:80px">
@@ -913,7 +990,38 @@ function renderEditCurrencyPills() {
     `<button class="c-pill ${c===editSelCurrency?'selected':''}" onclick="pickEditCurrency('${c}')">${c}</button>`
   ).join('');
 }
-function pickEditCurrency(c) { editSelCurrency = c; renderEditCurrencyPills(); }
+function pickEditCurrency(c) {
+  editSelCurrency = c;
+  renderEditCurrencyPills();
+  const row = document.getElementById('edit-exp-rate-row');
+  const rateInput = document.getElementById('edit-rate');
+  if (c === 'JPY') {
+    row.style.display = 'none';
+    rateInput.value = 1;
+  } else {
+    row.style.display = '';
+    rateInput.value = state.rates[c] || '';
+  }
+  updateEditExpJpyPreview();
+}
+function setEditExpRateField(currency, rateValue) {
+  const row = document.getElementById('edit-exp-rate-row');
+  const rateInput = document.getElementById('edit-rate');
+  if (currency === 'JPY') {
+    row.style.display = 'none';
+    rateInput.value = 1;
+  } else {
+    row.style.display = '';
+    rateInput.value = rateValue;
+  }
+  updateEditExpJpyPreview();
+}
+function updateEditExpJpyPreview() {
+  const amount = parseFloat(document.getElementById('edit-amount').value) || 0;
+  const rate = editSelCurrency === 'JPY' ? 1 : (parseFloat(document.getElementById('edit-rate').value) || 0);
+  const jpy = Math.round(amount * rate);
+  document.getElementById('edit-exp-jpy-preview').textContent = '¥' + jpy.toLocaleString();
+}
 
 function renderEditCatPills() {
   const el = document.getElementById('edit-cat-pills');
@@ -948,6 +1056,7 @@ function openEditModal(id) {
   renderEditCurrencyPills();
   renderEditCatPills();
   renderEditPayPills();
+  setEditExpRateField(exp.currency, exp.currency === 'JPY' ? 1 : (exp.rate != null ? exp.rate : (state.rates[exp.currency] || '')));
 
   document.getElementById('editModal').classList.add('open');
   document.body.style.overflow = 'hidden';
@@ -967,10 +1076,13 @@ function saveEdit() {
   const idx = state.expenses.findIndex(e => e.id === id);
   if (idx === -1) return;
 
+  const rate = editSelCurrency === 'JPY' ? null : (parseFloat(document.getElementById('edit-rate').value) || null);
+
   state.expenses[idx] = {
     ...state.expenses[idx],
     amount,
     currency: editSelCurrency,
+    rate,
     category: editSelCategory,
     payment:  editSelPayment,
     country:  document.getElementById('edit-country').value.trim(),
@@ -996,8 +1108,8 @@ function renderFxList() {
   el.innerHTML = [...state.fxRecords].reverse().map(f => {
     const d = new Date(f.ts);
     const dateStr = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-    const rate = (f.rate != null) ? f.rate : computeFxRate(f.fromAmt, f.fromCur, f.toAmt, f.toCur);
-    const rateStr = rate ? `💹 1${f.fromCur} = ${rate.toLocaleString(undefined,{maximumFractionDigits:4})}${f.toCur}` : '';
+    const r = (f.rate && typeof f.rate === 'object') ? f.rate : computeFxRate(f.fromAmt, f.fromCur, f.toAmt, f.toCur);
+    const rateStr = formatFxRate(r);
     return `
       <div class="fx-item">
         <span class="fx-badge">${f.source}</span>
@@ -1042,9 +1154,8 @@ function updateEditFxRatePreview() {
   const toAmt   = parseFloat(document.getElementById('edit-fx-to-amt').value);
   const fromCur = document.getElementById('edit-fx-from-cur').value;
   const toCur   = document.getElementById('edit-fx-to-cur').value;
-  const rate = computeFxRate(fromAmt, fromCur, toAmt, toCur);
-  const el = document.getElementById('edit-fx-rate-preview');
-  el.textContent = rate ? `💹 レート：1 ${fromCur} = ${rate.toLocaleString(undefined,{maximumFractionDigits:4})} ${toCur}` : '';
+  const r = computeFxRate(fromAmt, fromCur, toAmt, toCur);
+  document.getElementById('edit-fx-rate-preview').textContent = formatFxRate(r);
 }
 
 function openEditFxModal(id) {
@@ -1303,12 +1414,13 @@ function downloadExportContent() {
 }
 
 function exportCSV() {
-  const rows = [['日時','金額','通貨','JPY換算','カテゴリ','支払方法','国','都市','メモ']];
+  const rows = [['日時','金額','通貨','為替レート(1通貨=円)','JPY換算','カテゴリ','支払方法','国','都市','メモ']];
   state.expenses.forEach(e => {
     rows.push([
       new Date(e.ts).toLocaleString('ja'),
       e.amount, e.currency,
-      Math.round(toJPY(e.amount, e.currency)),
+      e.currency === 'JPY' ? '' : expRateOf(e),
+      Math.round(jpyOf(e)),
       e.category, e.payment, e.country, e.city, e.memo
     ]);
   });
@@ -1323,12 +1435,14 @@ function exportTXT() {
 
   // 集計
   const byCode = {};
+  const byCodeJPY = {};
   const byCat  = {};
   let totalJPY = 0;
   state.expenses.forEach(e => {
     byCode[e.currency] = (byCode[e.currency] || 0) + e.amount;
-    byCat[e.category]  = (byCat[e.category]  || 0) + toJPY(e.amount, e.currency);
-    totalJPY += toJPY(e.amount, e.currency);
+    byCodeJPY[e.currency] = (byCodeJPY[e.currency] || 0) + jpyOf(e);
+    byCat[e.category]  = (byCat[e.category]  || 0) + jpyOf(e);
+    totalJPY += jpyOf(e);
   });
 
   lines.push(`【JPY換算 総支出】  ¥${Math.round(totalJPY).toLocaleString()}`);
@@ -1336,7 +1450,7 @@ function exportTXT() {
 
   lines.push('【通貨別合計】');
   Object.entries(byCode).forEach(([cur, amt]) => {
-    lines.push(`  ${cur.padEnd(4)} ${amt.toLocaleString(undefined,{maximumFractionDigits:2}).padStart(12)}  ≈ ¥${Math.round(toJPY(amt,cur)).toLocaleString()}`);
+    lines.push(`  ${cur.padEnd(4)} ${amt.toLocaleString(undefined,{maximumFractionDigits:2}).padStart(12)}  ≈ ¥${Math.round(byCodeJPY[cur]).toLocaleString()}`);
   });
   lines.push('');
 
@@ -1346,15 +1460,16 @@ function exportTXT() {
   });
   lines.push('');
   lines.push('-'.repeat(40));
-  lines.push('【明細一覧】');
+  lines.push('【明細一覧（通貨・為替レート・円換算）】');
   lines.push('');
 
   [...state.expenses].reverse().forEach(e => {
     const d = new Date(e.ts);
     const ds = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
     const loc = [e.country, e.city].filter(Boolean).join(' ');
-    const jpy = Math.round(toJPY(e.amount, e.currency));
-    lines.push(`${ds}  [${e.category}]  ${e.currency} ${e.amount.toLocaleString(undefined,{maximumFractionDigits:2})}  ≈ ¥${jpy.toLocaleString()}`);
+    const jpy = Math.round(jpyOf(e));
+    const rateStr = e.currency === 'JPY' ? '' : `  @1${e.currency}=¥${expRateOf(e).toLocaleString(undefined,{maximumFractionDigits:4})}`;
+    lines.push(`${ds}  [${e.category}]  ${e.currency} ${e.amount.toLocaleString(undefined,{maximumFractionDigits:2})}${rateStr}  ≈ ¥${jpy.toLocaleString()}`);
     lines.push(`       ${e.payment}${loc?' · '+loc:''}${e.memo?' · '+e.memo:''}`);
     lines.push('');
   });
