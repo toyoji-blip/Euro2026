@@ -201,7 +201,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
 <script>
 (function(){
   const root = document.getElementById('postlog-root');
-  let tab = 'envelope'; // 'envelope' | 'opened'
+  let tab = 'envelope'; // 'new' | 'opened'
   let data = { envelope: [], opened: [] };
   let modalMode = null; // 'add-envelope' | 'add-opened' | 'edit-envelope' | 'edit-opened'
   let draft = { photo: null, sender: '', memo: '', ocrText: '', relatedId: null, openRequested: false, editId: null };
@@ -325,12 +325,12 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   // アプリ起動時にクリップボードからテキストを自動読み取りしてモーダルを開く。
   // 写真はフォルダ（ダウンロード）から手動で選択。
   // ショートカット連携：
-  // postlog.html?mode=envelope でアプリを開くと外装記録モーダルが自動で開く。
+  // postlog.html?action=new でアプリを開くと外装記録モーダルが自動で開く。
   // クリップボードにテキストがあれば差出人・認識テキスト欄に自動入力。
   // 写真はダウンロードフォルダ（このiPhone内）から手動で選択。
   async function handleIncomingParams(){
     const params = new URLSearchParams(window.location.search);
-    const modeParam = params.get('mode'); // 'envelope' | 'opened'
+    const modeParam = params.get('action'); // 'new' | 'opened'
     if (!modeParam) return;
 
     // URLをきれいにしておく
