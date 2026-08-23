@@ -320,49 +320,37 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   // ショートカット連携：URLに ?ocr=認識済みテキスト（&type=envelope|opened）を付けて開くと、
   // 新規記録モーダルが自動で開き、テキストが差出人欄・認識テキスト欄にプリセットされる。
   // 同時にクリップボードから写真を自動読み取りしてプレビューにセットする。
+  // ショートカット連携：
+  // ショートカット側で「テキストをクリップボードにコピー」→「URLを開く（ベースURLのみ）」で起動。
+  // アプリ起動時にクリップボードからテキストを自動読み取りしてモーダルを開く。
+  // 写真はフォルダ（ダウンロード）から手動で選択。
   async function handleIncomingParams(){
+    // URLパラメータにocrがあれば旧方式として処理（後方互換）
     const params = new URLSearchParams(window.location.search);
     const ocrParam = params.get('ocr');
-    if (!ocrParam) return;
-    const text = decodeURIComponent(ocrParam);
-    const typeParam = params.get('type') === 'opened' ? 'opened' : 'envelope';
-    tab = typeParam;
-    const guessSender = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
-    openModal(typeParam === 'envelope' ? 'add-envelope' : 'add-opened', {
-      sender: guessSender,
-      ocrText: text
-    });
-    // URLをきれいにしておく（リロード時の二重取り込みや共有時の混乱を防ぐ）
-    const cleanUrl = window.location.pathname;
-    window.history.replaceState({}, document.title, cleanUrl);
+    if (ocrParam) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
 
-    // クリップボードから写真を自動読み取り
-    // ショートカット側で「写真をクリップボードにコピー」してからURLを開いた場合に自動でセットされる
+    // クリップボードからテキストを読み取る
     try {
-      if (navigator.clipboard && navigator.clipboard.read) {
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-          for (const type of item.types) {
-            if (type.startsWith('image/')) {
-              const blob = await item.getType(type);
-              const file = new File([blob], 'clipboard.jpg', { type: blob.type || 'image/jpeg' });
-              const dataUrl = await compressImage(file);
-              draft.photo = dataUrl;
-              // モーダルが描画された後にプレビューを更新
-              render();
-              const preview = root.querySelector('#f-preview');
-              if (preview) { preview.src = dataUrl; preview.style.display = 'block'; }
-              const statusEl = root.querySelector('#f-ocr-status');
-              if (statusEl) statusEl.textContent = '写真をクリップボードから読み込みました。';
-              toast('写真とテキストを自動入力しました');
-              return; // 画像が見つかったら終了
-            }
-          }
-        }
-      }
+      if (!navigator.clipboard || !navigator.clipboard.readText) return;
+      const text = await navigator.clipboard.readText();
+      if (!text || !text.trim()) return;
+
+      // 改行を正規化
+      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+      const guessSender = normalized.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+
+      tab = 'envelope';
+      openModal('add-envelope', {
+        sender: guessSender,
+        ocrText: normalized
+      });
+      toast('認識テキストを自動入力しました');
     } catch(err) {
-      // クリップボードへのアクセス権限がない・画像がない場合は無視
-      // テキストだけでモーダルが開いている状態で続行
+      // クリップボードへのアクセス権限がない場合は何もしない
     }
   }
 
