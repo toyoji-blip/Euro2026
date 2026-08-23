@@ -1046,17 +1046,9 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
         draft.photo = dataUrl;
         const preview = root.querySelector('#f-preview');
         preview.src = dataUrl; preview.style.display = 'block';
+        // OCRは実行しない（ショートカットのiPhone文字認識テキストをクリップボード経由で受け取るため）
         const statusEl = root.querySelector('#f-ocr-status');
-        const text = await runOcr(dataUrl, statusEl);
-        draft.ocrText = text;
-        if (modalMode === 'add-envelope') {
-          const guess = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
-          draft.sender = guess;
-          const senderInput = root.querySelector('#f-sender');
-          if (senderInput) senderInput.value = guess;
-          const ocrTextArea = root.querySelector('#f-ocrtext');
-          if (ocrTextArea) ocrTextArea.value = text;
-        }
+        if (statusEl) statusEl.textContent = '写真を読み込みました';
       };
     }
 
