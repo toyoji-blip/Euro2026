@@ -324,33 +324,43 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   // ショートカット側で「テキストをクリップボードにコピー」→「URLを開く（ベースURLのみ）」で起動。
   // アプリ起動時にクリップボードからテキストを自動読み取りしてモーダルを開く。
   // 写真はフォルダ（ダウンロード）から手動で選択。
+  // ショートカット連携：
+  // postlog.html?mode=envelope でアプリを開くと外装記録モーダルが自動で開く。
+  // クリップボードにテキストがあれば差出人・認識テキスト欄に自動入力。
+  // 写真はダウンロードフォルダ（このiPhone内）から手動で選択。
   async function handleIncomingParams(){
-    // URLパラメータにocrがあれば旧方式として処理（後方互換）
     const params = new URLSearchParams(window.location.search);
-    const ocrParam = params.get('ocr');
-    if (ocrParam) {
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
+    const modeParam = params.get('mode'); // 'envelope' | 'opened'
+    if (!modeParam) return;
 
-    // クリップボードからテキストを読み取る
+    // URLをきれいにしておく
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    const modalTarget = modeParam === 'opened' ? 'add-opened' : 'add-envelope';
+    tab = modeParam === 'opened' ? 'opened' : 'envelope';
+
+    // まず先にモーダルを開いてDOMを確定させる
+    openModal(modalTarget, { sender: '', ocrText: '' });
+
+    // クリップボードからテキストを読み取り、DOM確定後にフィールドへセット
     try {
-      if (!navigator.clipboard || !navigator.clipboard.readText) return;
-      const text = await navigator.clipboard.readText();
-      if (!text || !text.trim()) return;
-
-      // 改行を正規化
-      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-      const guessSender = normalized.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
-
-      tab = 'envelope';
-      openModal('add-envelope', {
-        sender: guessSender,
-        ocrText: normalized
-      });
-      toast('認識テキストを自動入力しました');
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          const ocrText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+          const sender = ocrText.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+          // DOMが確定した後にフィールドへ反映
+          setTimeout(() => {
+            const senderInput = root.querySelector('#f-sender');
+            const ocrTextArea = root.querySelector('#f-ocrtext');
+            if (senderInput) senderInput.value = sender;
+            if (ocrTextArea) ocrTextArea.value = ocrText;
+            toast('認識テキストを自動入力しました');
+          }, 100);
+        }
+      }
     } catch(err) {
-      // クリップボードへのアクセス権限がない場合は何もしない
+      // クリップボードへのアクセス権限がない場合は空モーダルのまま続行
     }
   }
 
