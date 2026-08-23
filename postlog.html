@@ -319,7 +319,8 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
 
   // ショートカット連携：URLに ?ocr=認識済みテキスト（&type=envelope|opened）を付けて開くと、
   // 新規記録モーダルが自動で開き、テキストが差出人欄・認識テキスト欄にプリセットされる。
-  function handleIncomingParams(){
+  // 同時にクリップボードから写真を自動読み取りしてプレビューにセットする。
+  async function handleIncomingParams(){
     const params = new URLSearchParams(window.location.search);
     const ocrParam = params.get('ocr');
     if (!ocrParam) return;
@@ -334,6 +335,35 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     // URLをきれいにしておく（リロード時の二重取り込みや共有時の混乱を防ぐ）
     const cleanUrl = window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
+
+    // クリップボードから写真を自動読み取り
+    // ショートカット側で「写真をクリップボードにコピー」してからURLを開いた場合に自動でセットされる
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          for (const type of item.types) {
+            if (type.startsWith('image/')) {
+              const blob = await item.getType(type);
+              const file = new File([blob], 'clipboard.jpg', { type: blob.type || 'image/jpeg' });
+              const dataUrl = await compressImage(file);
+              draft.photo = dataUrl;
+              // モーダルが描画された後にプレビューを更新
+              render();
+              const preview = root.querySelector('#f-preview');
+              if (preview) { preview.src = dataUrl; preview.style.display = 'block'; }
+              const statusEl = root.querySelector('#f-ocr-status');
+              if (statusEl) statusEl.textContent = '写真をクリップボードから読み込みました。';
+              toast('写真とテキストを自動入力しました');
+              return; // 画像が見つかったら終了
+            }
+          }
+        }
+      }
+    } catch(err) {
+      // クリップボードへのアクセス権限がない・画像がない場合は無視
+      // テキストだけでモーダルが開いている状態で続行
+    }
   }
 
 
@@ -1035,9 +1065,44 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     const pasteBtn = root.querySelector('#f-paste-btn');
     if (pasteBtn) pasteBtn.onclick = async () => {
       const statusEl = root.querySelector('#f-ocr-status');
+      let text = '';
+      let imageBlob = null;
+
+      // まず navigator.clipboard.read() で画像＋テキストの両方を試みる
       try {
-        const text = await navigator.clipboard.readText();
-        if (!text || !text.trim()) { toast('クリップボードにテキストがありません'); return; }
+        if (navigator.clipboard.read) {
+          const items = await navigator.clipboard.read();
+          for (const item of items) {
+            for (const type of item.types) {
+              if (type.startsWith('image/') && !imageBlob) {
+                imageBlob = await item.getType(type);
+              }
+              if (type === 'text/plain' && !text) {
+                const blob = await item.getType(type);
+                text = await blob.text();
+              }
+            }
+          }
+        }
+      } catch(err) { /* read()が使えない/権限がない場合は下のreadTextにフォールバック */ }
+
+      if (!text) {
+        try { text = await navigator.clipboard.readText(); } catch(err) { /* ignore */ }
+      }
+
+      if (!text && !imageBlob) { toast('クリップボードに貼り付けできる内容がありません'); return; }
+
+      if (imageBlob) {
+        try {
+          const file = new File([imageBlob], 'clipboard.jpg', { type: imageBlob.type || 'image/jpeg' });
+          const dataUrl = await compressImage(file);
+          draft.photo = dataUrl;
+          const preview = root.querySelector('#f-preview');
+          if (preview) { preview.src = dataUrl; preview.style.display = 'block'; }
+        } catch(err) { /* 画像変換に失敗した場合はテキストだけ反映 */ }
+      }
+
+      if (text && text.trim()) {
         draft.ocrText = text;
         if (modalMode === 'add-envelope' || modalMode === 'edit-envelope') {
           const guess = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
@@ -1050,11 +1115,13 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
           const ocrTextArea = root.querySelector('#f-ocrtext-o');
           if (ocrTextArea) ocrTextArea.value = text;
         }
-        if (statusEl) statusEl.textContent = 'クリップボードから貼り付けました。';
-        toast('貼り付けました');
-      } catch(err) {
-        toast('クリップボードを読み取れませんでした（許可が必要な場合があります）');
       }
+
+      if (statusEl) statusEl.textContent = imageBlob ? '写真とテキストを貼り付けました。' : 'テキストを貼り付けました。';
+      toast(imageBlob ? '写真とテキストを貼り付けました' : 'テキストを貼り付けました');
+
+      // 画像だけ後から反映した場合、プレビュー以外の見た目も更新する必要があるので再描画
+      if (imageBlob) render();
     };
 
     root.querySelectorAll('[data-related]').forEach(o => o.onclick = () => {
@@ -1098,7 +1165,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   link.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600;700&display=swap';
   document.head.appendChild(link);
 
-  loadAll().then(() => { handleIncomingParams(); });
+  loadAll().then(() => { handleIncomingParams(); }); // handleIncomingParams は async なので内部でawait処理される
 })();
 </script>
 </body>
