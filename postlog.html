@@ -339,29 +339,28 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     const modalTarget = modeParam === 'opened' ? 'add-opened' : 'add-envelope';
     tab = modeParam === 'opened' ? 'opened' : 'envelope';
 
-    // まず先にモーダルを開いてDOMを確定させる
+    // まず先にモーダルを開いてDOMを確定させる（クリップボード読み取り成否に関わらず必ず開く）
     openModal(modalTarget, { sender: '', ocrText: '' });
 
     // クリップボードからテキストを読み取り、DOM確定後にフィールドへセット
-    try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text && text.trim()) {
-          const ocrText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-          const sender = ocrText.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
-          // DOMが確定した後にフィールドへ反映
-          setTimeout(() => {
+    setTimeout(async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim()) {
+            const ocrText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+            const sender = ocrText.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
             const senderInput = root.querySelector('#f-sender');
             const ocrTextArea = root.querySelector('#f-ocrtext');
             if (senderInput) senderInput.value = sender;
             if (ocrTextArea) ocrTextArea.value = ocrText;
             toast('認識テキストを自動入力しました');
-          }, 100);
+          }
         }
+      } catch(err) {
+        // クリップボードへのアクセス権限がない・空の場合は何もしない
       }
-    } catch(err) {
-      // クリップボードへのアクセス権限がない場合は空モーダルのまま続行
-    }
+    }, 200);
   }
 
 
