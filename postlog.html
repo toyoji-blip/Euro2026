@@ -731,6 +731,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
             <img class="photo-preview" id="f-preview" style="${draft.photo ? 'display:block' : ''}" src="${draft.photo || ''}">
             <input type="file" accept="image/*" id="f-photo" style="display:none">
             <button class="capture-btn" id="f-capture-btn">📷 ${draft.photo ? '撮り直す/選び直す' : '写真を撮る・選ぶ'}</button>
+            <button class="capture-btn" id="f-paste-btn" style="margin-left:8px;background:var(--card);">📋 クリップボードから貼り付け</button>
             <div class="ocr-status" id="f-ocr-status"></div>
           </div>
 
@@ -1030,6 +1031,31 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
         }
       };
     }
+
+    const pasteBtn = root.querySelector('#f-paste-btn');
+    if (pasteBtn) pasteBtn.onclick = async () => {
+      const statusEl = root.querySelector('#f-ocr-status');
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text || !text.trim()) { toast('クリップボードにテキストがありません'); return; }
+        draft.ocrText = text;
+        if (modalMode === 'add-envelope' || modalMode === 'edit-envelope') {
+          const guess = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+          draft.sender = guess;
+          const senderInput = root.querySelector('#f-sender');
+          if (senderInput) senderInput.value = guess;
+          const ocrTextArea = root.querySelector('#f-ocrtext');
+          if (ocrTextArea) ocrTextArea.value = text;
+        } else {
+          const ocrTextArea = root.querySelector('#f-ocrtext-o');
+          if (ocrTextArea) ocrTextArea.value = text;
+        }
+        if (statusEl) statusEl.textContent = 'クリップボードから貼り付けました。';
+        toast('貼り付けました');
+      } catch(err) {
+        toast('クリップボードを読み取れませんでした（許可が必要な場合があります）');
+      }
+    };
 
     root.querySelectorAll('[data-related]').forEach(o => o.onclick = () => {
       draft.relatedId = o.dataset.related;
