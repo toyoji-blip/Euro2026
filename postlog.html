@@ -317,6 +317,26 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   }
   function closeModal(){ modalMode = null; render(); }
 
+  // ショートカット連携：URLに ?ocr=認識済みテキスト（&type=envelope|opened）を付けて開くと、
+  // 新規記録モーダルが自動で開き、テキストが差出人欄・認識テキスト欄にプリセットされる。
+  function handleIncomingParams(){
+    const params = new URLSearchParams(window.location.search);
+    const ocrParam = params.get('ocr');
+    if (!ocrParam) return;
+    const text = decodeURIComponent(ocrParam);
+    const typeParam = params.get('type') === 'opened' ? 'opened' : 'envelope';
+    tab = typeParam;
+    const guessSender = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+    openModal(typeParam === 'envelope' ? 'add-envelope' : 'add-opened', {
+      sender: guessSender,
+      ocrText: text
+    });
+    // URLをきれいにしておく（リロード時の二重取り込みや共有時の混乱を防ぐ）
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+
+
   async function handleSaveEnvelope(){
     const senderInput = root.querySelector('#f-sender');
     const memoInput = root.querySelector('#f-memo');
@@ -709,8 +729,8 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
 
           <div class="photo-zone">
             <img class="photo-preview" id="f-preview" style="${draft.photo ? 'display:block' : ''}" src="${draft.photo || ''}">
-            <input type="file" accept="image/*" capture="environment" id="f-photo" style="display:none">
-            <button class="capture-btn" id="f-capture-btn">📷 ${draft.photo ? '撮り直す' : '写真を撮る'}</button>
+            <input type="file" accept="image/*" id="f-photo" style="display:none">
+            <button class="capture-btn" id="f-capture-btn">📷 ${draft.photo ? '撮り直す/選び直す' : '写真を撮る・選ぶ'}</button>
             <div class="ocr-status" id="f-ocr-status"></div>
           </div>
 
@@ -1052,7 +1072,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   link.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600;700&display=swap';
   document.head.appendChild(link);
 
-  loadAll();
+  loadAll().then(() => { handleIncomingParams(); });
 })();
 </script>
 </body>
