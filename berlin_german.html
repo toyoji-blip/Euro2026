@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Berlin German 100</title>
+<style>
+:root{
+  --bg:#f1f5f9;--surface:#ffffff;--surface2:#f8fafc;
+  --ink:#0f172a;--ink2:#475569;--ink3:#94a3b8;
+  --brand:#2563eb;--brand-light:#dbeafe;--brand-dark:#1d4ed8;
+  --green:#16a34a;--amber:#d97706;--red:#dc2626;
+  --radius:16px;--radius-sm:10px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--ink);background:var(--bg);
+}
+*{box-sizing:border-box}
+body{margin:0}
+.app{max-width:700px;margin:auto;padding:16px 14px 48px}
+
+/* ── TAB NAV ── */
+.tab-nav{display:flex;gap:4px;background:#e2e8f0;padding:4px;border-radius:14px;margin-bottom:18px}
+.tab-btn{flex:1;padding:9px 4px;border:0;border-radius:10px;background:transparent;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;transition:all .15s}
+.tab-btn.active{background:#fff;color:var(--ink);box-shadow:0 1px 6px #0002}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border-radius:var(--radius);padding:22px;box-shadow:0 2px 12px #0000000d;margin:10px 0}
+.card-sm{padding:14px 16px}
+
+/* ── BADGES ── */
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px}
+.badge{background:var(--brand-light);color:var(--brand);padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700}
+.badge.green{background:#dcfce7;color:var(--green)}
+.badge.amber{background:#fef3c7;color:var(--amber)}
+
+/* ── FLASHCARD ── */
+.de{font-size:30px;font-weight:800;line-height:1.2;margin:14px 0 4px;letter-spacing:-.3px}
+.kana{font-size:16px;color:var(--ink2);letter-spacing:.3px}
+.jp{font-size:20px;margin-top:14px;color:var(--ink)}
+
+/* ── BUTTONS ── */
+button{border:0;border-radius:var(--radius-sm);padding:11px 14px;font-size:15px;font-weight:600;background:var(--ink);color:#fff;cursor:pointer;transition:opacity .1s}
+button:active{opacity:.82}
+button.sec{background:#e2e8f0;color:var(--ink)}
+button.pri{background:var(--brand);color:#fff}
+button.good{background:var(--green)}
+button.warn{background:var(--amber)}
+button.danger{background:var(--red)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.row button{flex:1;min-width:110px}
+.nav{display:flex;gap:8px;margin-top:10px}.nav button{flex:1}
+.progress{height:7px;background:#e2e8f0;border-radius:99px;overflow:hidden;margin:8px 0}
+.bar{height:100%;background:var(--brand);transition:width .4s}
+.stats{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-bottom:4px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+
+/* ── BUILDER ── */
+.builder-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.builder-top h2{margin:0;font-size:18px;font-weight:800}
+.section-head{font-size:13px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;margin:20px 0 8px}
+.pattern-list{display:flex;flex-direction:column;gap:6px;max-height:320px;overflow-y:auto}
+.pattern-item{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--surface2);border:1.5px solid transparent;border-radius:var(--radius-sm);cursor:pointer;transition:border-color .12s}
+.pattern-item:hover{border-color:#cbd5e1}
+.pattern-item.selected{border-color:var(--brand);background:var(--brand-light)}
+.pattern-meta{flex:1;min-width:0}
+.pattern-template{font-size:16px;font-weight:700;word-break:break-word}
+.pattern-jp{font-size:12px;color:var(--ink2);margin-top:2px}
+.pattern-cat{font-size:11px;font-weight:700;color:var(--brand)}
+.pattern-del{background:transparent;color:var(--ink3);font-size:16px;padding:4px 6px;border-radius:6px;flex-shrink:0}
+.pattern-del:hover{background:#fee2e2;color:var(--red)}
+
+/* slots */
+.slot-area{margin-top:14px}
+.slot-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.slot-label{font-size:13px;font-weight:700;color:var(--ink);min-width:52px}
+.slot-select{flex:1;min-width:140px;padding:9px 12px;border:1.5px solid #cbd5e1;border-radius:var(--radius-sm);background:#fff;font-size:15px;color:var(--ink)}
+.slot-select:focus{outline:none;border-color:var(--brand)}
+
+/* result */
+.result-box{background:var(--ink);color:#fff;border-radius:var(--radius);padding:20px 22px;margin-top:14px}
+.result-label{font-size:11px;font-weight:700;color:#94a3b8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.result-de{font-size:28px;font-weight:800;line-height:1.3;letter-spacing:-.2px}
+.result-jp{font-size:15px;color:#cbd5e1;margin-top:8px}
+.result-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.result-actions button{background:#ffffff18;color:#fff;border:1px solid #ffffff30}
+.result-actions button:hover{background:#ffffff28}
+
+/* word list */
+.word-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:260px;overflow-y:auto}
+.word-item{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--surface2);border-radius:var(--radius-sm);font-size:14px}
+.word-de{font-weight:700;flex:1}
+.word-jp{color:var(--ink2);font-size:12px}
+.word-del{background:transparent;color:var(--ink3);font-size:14px;padding:2px 6px;border-radius:5px}
+.word-del:hover{background:#fee2e2;color:var(--red)}
+
+/* add form */
+.add-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.add-form input{padding:10px 13px;border:1.5px solid #cbd5e1;border-radius:var(--radius-sm);font-size:15px;font-family:inherit;outline:none}
+.add-form input:focus{border-color:var(--brand)}
+.add-form-row{display:flex;gap:8px}.add-form-row input{flex:1}
+.form-label{font-size:12px;font-weight:700;color:var(--ink2);margin-bottom:2px}
+
+/* modal */
+.modal-bg{display:none;position:fixed;inset:0;background:#0007;z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:20px;padding:24px;width:min(90vw,440px);max-height:85vh;overflow-y:auto}
+.modal h3{margin:0 0 16px;font-size:18px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+
+/* history */
+.hist-item{border:1.5px solid #e2e8f0;border-radius:var(--radius-sm);padding:10px 14px;background:#fff;display:flex;align-items:center;gap:10px}
+.hist-de{font-weight:700;flex:1}
+.hist-jp{font-size:12px;color:var(--ink2)}
+
+/* misc */
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+h1{font-size:22px;margin:0;font-weight:900;letter-spacing:-.4px}
+.sub{color:var(--ink2);font-size:12px;margin-top:2px}
+.small{font-size:12px;color:var(--ink2);line-height:1.6}
+.empty{color:var(--ink3);font-size:13px;padding:16px 0;text-align:center}
+select{width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:var(--radius-sm);background:#fff;font-size:14px}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div>
+    <h1>🇩🇪 Berlin German 100</h1>
+    <div class="sub">ベルリン2か月・実戦ドイツ語</div>
+  </div>
+  <button class="sec" onclick="toggleJP()">日本語</button>
+</header>
+
+<!-- TAB NAV -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('flash')">📇 フラッシュカード</button>
+  <button class="tab-btn" onclick="switchTab('builder')">🔨 文ビルダー</button>
+</div>
+
+<!-- ═══════════ FLASHCARD TAB ═══════════ -->
+<div id="tab-flash" class="tab-pane active">
+
+<div class="card">
+  <div class="badges"><span class="badge" id="rank"></span><span class="badge" id="cat"></span></div>
+  <div class="de" id="de"></div>
+  <div class="kana" id="kana"></div>
+  <div class="jp" id="jp"></div>
+  <div class="row">
+    <button onclick="speak()">🔊 発音</button>
+    <button class="sec" onclick="speakSlow()">🐢 ゆっくり</button>
+  </div>
+  <div class="row">
+    <button class="good" onclick="mark(true)">✓ 覚えた</button>
+    <button class="warn" onclick="mark(false)">↻ もう一度</button>
+  </div>
+  <div class="nav">
+    <button class="sec" onclick="prev()">← 前へ</button>
+    <button class="sec" onclick="next()">次へ →</button>
+  </div>
+</div>
+
+<div class="card card-sm">
+  <div class="stats"><span id="count"></span><span id="learned"></span></div>
+  <div class="progress"><div class="bar" id="bar"></div></div>
+  <div class="controls">
+    <button class="sec" onclick="randomCard()">🎲 ランダム</button>
+    <button class="sec" onclick="today10()">🎯 今日の10問</button>
+    <button class="sec" onclick="showUnlearned()">苦手だけ</button>
+    <button class="sec" onclick="resetAll()">進捗リセット</button>
+  </div>
+</div>
+
+<div class="card card-sm">
+  <div style="font-weight:700;margin-bottom:6px">📊 練習モード</div>
+  <p class="small">日本語だけを見てドイツ語を思い出す4択クイズです。</p>
+  <button class="sec" onclick="quiz()">4択クイズ</button>
+</div>
+
+</div><!-- /flash -->
+
+<!-- ═══════════ BUILDER TAB ═══════════ -->
+<div id="tab-builder" class="tab-pane">
+
+<!-- RESULT at top -->
+<div id="builderResult" style="display:none"></div>
+
+<!-- PATTERN SELECT -->
+<div class="card">
+  <div class="builder-top">
+    <h2>🔨 文ビルダー</h2>
+    <button class="pri" style="font-size:13px;padding:7px 12px" onclick="openPatternModal()">＋ 用法を追加</button>
+  </div>
+
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+    <select id="catFilter" onchange="renderPatternList()" style="flex:1">
+      <option value="">すべてのカテゴリ</option>
+    </select>
+  </div>
+
+  <div class="section-head">用法を選択</div>
+  <div class="pattern-list" id="patternList"></div>
+
+  <!-- SLOT AREA -->
+  <div class="slot-area" id="slotArea" style="display:none">
+    <div class="section-head">単語を選ぶ／入力する</div>
+    <div id="slotRows"></div>
+    <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+      <button class="pri" onclick="buildSentence()">ドイツ語を生成</button>
+      <button class="sec" onclick="openWordModal()">＋ 単語を追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- WORD LIST -->
+<div class="card">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <div style="font-weight:700;flex:1">📦 登録単語</div>
+    <select id="wordCatFilter" onchange="renderWordList()" style="width:auto;min-width:100px;font-size:13px;padding:5px 8px">
+      <option value="">すべて</option>
+    </select>
+  </div>
+  <div class="word-grid" id="wordList"></div>
+</div>
+
+<!-- HISTORY -->
+<div class="card">
+  <div style="font-weight:700;margin-bottom:10px">🕐 最近の生成文</div>
+  <div id="builderHistory" style="display:flex;flex-direction:column;gap:6px"></div>
+</div>
+
+</div><!-- /builder -->
+</div><!-- /app -->
+
+<!-- ═══ MODAL: ADD PATTERN ═══ -->
+<div class="modal-bg" id="patternModal">
+  <div class="modal">
+    <h3>用法を追加</h3>
+    <div class="add-form">
+      <div>
+        <div class="form-label">テンプレート（スロットは ○○ △△ ◇◇ で）</div>
+        <input id="pm-template" placeholder="Ich möchte ○○." oninput="previewTemplate()">
+      </div>
+      <div>
+        <div class="form-label">日本語の意味</div>
+        <input id="pm-jp" placeholder="○○が欲しいです">
+      </div>
+      <div>
+        <div class="form-label">カテゴリ</div>
+        <input id="pm-cat" placeholder="注文、交通、買い物 など">
+      </div>
+      <div id="pm-preview" class="small" style="color:var(--brand);min-height:20px"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="sec" onclick="closePatternModal()">キャンセル</button>
+      <button class="pri" onclick="savePattern()">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: ADD WORD ═══ -->
+<div class="modal-bg" id="wordModal">
+  <div class="modal">
+    <h3>単語を追加</h3>
+    <div class="add-form">
+      <div class="add-form-row">
+        <div style="flex:1">
+          <div class="form-label">ドイツ語</div>
+          <input id="wm-de" placeholder="Wasser">
+        </div>
+        <div style="flex:1">
+          <div class="form-label">日本語</div>
+          <input id="wm-jp" placeholder="水">
+        </div>
+      </div>
+      <div>
+        <div class="form-label">カテゴリ（スロット名と合わせる）</div>
+        <input id="wm-cat" placeholder="飲み物、場所、名前 など">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="sec" onclick="closeWordModal()">キャンセル</button>
+      <button class="pri" onclick="saveWord()">追加</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════
+   FLASHCARD DATA
+════════════════════════════════════════════ */
+const data=[
+["Entschuldigung.","エントシュルディグング","すみません","最優先","基本"],
+["Entschuldigen Sie.","エントシュルディゲン ズィー","すみません（丁寧）","最優先","基本"],
+["Danke.","ダンケ","ありがとう","最優先","基本"],
+["Vielen Dank.","フィーレン ダンク","ありがとうございます","最優先","基本"],
+["Bitte.","ビッテ","どういたしまして／お願いします","最優先","基本"],
+["Guten Morgen.","グーテン モルゲン","おはようございます","最優先","挨拶"],
+["Guten Tag.","グーテン ターク","こんにちは","最優先","挨拶"],
+["Guten Abend.","グーテン アーベント","こんばんは","最優先","挨拶"],
+["Hallo.","ハロー","こんにちは","最優先","挨拶"],
+["Tschüss.","チュース","じゃあね","最優先","挨拶"],
+["Ja.","ヤー","はい","最優先","基本"],
+["Nein.","ナイン","いいえ","最優先","基本"],
+["Vielleicht.","フィライヒト","たぶん／もしかすると","最優先","基本"],
+["Okay.","オーケー","OK","最優先","基本"],
+["Ich verstehe nicht.","イヒ フェアシュテーエ ニヒト","分かりません","最優先","会話"],
+["Ich verstehe.","イヒ フェアシュテーエ","分かります","最優先","会話"],
+["Sprechen Sie Englisch?","シュプレッヘン ズィー エングリッシュ？","英語を話しますか？","最優先","会話"],
+["Sprechen Sie langsam, bitte.","シュプレッヘン ズィー ラングザーム、ビッテ","ゆっくり話してください","最優先","会話"],
+["Noch einmal, bitte.","ノッホ アインマール、ビッテ","もう一度お願いします","最優先","会話"],
+["Was bedeutet das?","ヴァス ベドイテット ダス？","これはどういう意味ですか？","最優先","会話"],
+["Wie viel kostet das?","ヴィー フィール コステット ダス？","これはいくらですか？","最優先","買い物"],
+["Wie viel?","ヴィー フィール？","いくら？","最優先","買い物"],
+["Ich möchte das.","イヒ メヒテ ダス","これが欲しいです","最優先","買い物"],
+["Ich nehme das.","イヒ ネーメ ダス","これにします","最優先","買い物"],
+["Einmal, bitte.","アインマール、ビッテ","1つ／1回お願いします","最優先","注文"],
+["Die Rechnung, bitte.","ディー レヒヌング、ビッテ","お会計お願いします","最優先","レストラン"],
+["Mit Karte, bitte.","ミット カルテ、ビッテ","カードでお願いします","最優先","支払い"],
+["Bar, bitte.","バー、ビッテ","現金でお願いします","重要","支払い"],
+["Wo ist die Toilette?","ヴォー イスト ディー トワレッテ？","トイレはどこですか？","最優先","生活"],
+["Wo ist der Bahnhof?","ヴォー イスト デア バーンホーフ？","駅はどこですか？","最優先","交通"],
+["Ich hätte gern ...","イヒ ヘッテ ゲルン","…をお願いします","重要","注文"],
+["Ich möchte ...","イヒ メヒテ","…が欲しいです","重要","注文"],
+["Ein Bier, bitte.","アイン ビーア、ビッテ","ビールを1杯お願いします","重要","注文"],
+["Ein Wasser, bitte.","アイン ヴァッサー、ビッテ","水を1つお願いします","重要","注文"],
+["Einen Kaffee, bitte.","アイネン カフェー、ビッテ","コーヒーをお願いします","重要","注文"],
+["Noch ein Bier, bitte.","ノッホ アイン ビーア、ビッテ","もう1杯ビールを","重要","注文"],
+["Zum Mitnehmen, bitte.","ツム ミットネーメン、ビッテ","持ち帰りで","重要","注文"],
+["Hier, bitte.","ヒーア、ビッテ","ここで","重要","注文"],
+["Ohne ...","オーネ","…なしで","重要","注文"],
+["Mit ...","ミット","…付きで","重要","注文"],
+["Was empfehlen Sie?","ヴァス エンプフェーレン ズィー？","おすすめは何ですか？","重要","レストラン"],
+["Was ist das?","ヴァス イスト ダス？","これは何ですか？","重要","レストラン"],
+["Ist das vegetarisch?","イスト ダス ベゲタリッシュ？","ベジタリアンですか？","重要","レストラン"],
+["Ich esse kein Fleisch.","イヒ エッセ カイン フライシュ","肉を食べません","重要","レストラン"],
+["Die Speisekarte, bitte.","ディー シュパイゼカルテ、ビッテ","メニューをお願いします","重要","レストラン"],
+["Zusammen, bitte.","ツザメン、ビッテ","一緒にお願いします","重要","支払い"],
+["Getrennt, bitte.","ゲトレント、ビッテ","別々でお願いします","重要","支払い"],
+["Stimmt so.","シュティムト ゾー","お釣りは結構です","重要","支払い"],
+["Kann ich mit Karte bezahlen?","カン イヒ ミット カルテ ベツァーレン？","カードで払えますか？","重要","支払い"],
+["Kann ich bar bezahlen?","カン イヒ バー ベツァーレン？","現金で払えますか？","重要","支払い"],
+["Haben Sie ...?","ハーベン ズィー？","…はありますか？","重要","買い物"],
+["Ich schaue nur.","イヒ シャウエ ヌーア","見ているだけです","重要","買い物"],
+["Das ist zu teuer.","ダス イスト ツー トイア","高すぎます","重要","買い物"],
+["Das ist gut.","ダス イスト グート","これはいいですね","重要","会話"],
+["Wo ist ...?","ヴォー イスト？","…はどこですか？","最優先","交通"],
+["Wie komme ich zu ...?","ヴィー コメ イヒ ツー？","…へはどう行けばいいですか？","重要","交通"],
+["Wie komme ich zum Bahnhof?","ヴィー コメ イヒ ツム バーンホーフ？","駅へはどう行けばいいですか？","重要","交通"],
+["Wo ist die U-Bahn?","ヴォー イスト ディー ウーバーン？","地下鉄はどこですか？","最優先","交通"],
+["Wo ist die S-Bahn?","ヴォー イスト ディー エスバーン？","Sバーンはどこですか？","重要","交通"],
+["Wo ist die Bushaltestelle?","ヴォー イスト ディー ブスハルテシュテレ？","バス停はどこですか？","重要","交通"],
+["Welche Linie?","ヴェルヒェ リーニエ？","何線ですか？","重要","交通"],
+["Welche Richtung?","ヴェルヒェ リヒトゥング？","どちら方向ですか？","重要","交通"],
+["Ist das der richtige Zug?","イスト ダス デア リヒティゲ ツーク？","この電車で合っていますか？","重要","交通"],
+["Ist das der richtige Bus?","イスト ダス デア リヒティゲ ブス？","このバスで合っていますか？","重要","交通"],
+["Fährt dieser Zug nach ...?","フェアト ディーザー ツーク ナーハ？","この電車は…へ行きますか？","重要","交通"],
+["Wo muss ich umsteigen?","ヴォー ムス イヒ ウムシュタイゲン？","どこで乗り換えますか？","重要","交通"],
+["Einmal nach ... , bitte.","アインマール ナーハ、ビッテ","…まで1枚お願いします","重要","交通"],
+["Eine Fahrkarte, bitte.","アイネ ファールカルテ、ビッテ","乗車券を1枚お願いします","重要","交通"],
+["Wo kann ich eine Fahrkarte kaufen?","ヴォー カン イヒ アイネ ファールカルテ カウフェン？","どこで切符を買えますか？","重要","交通"],
+["Ist das hier richtig?","イスト ダス ヒーア リヒティヒ？","ここで合っていますか？","重要","交通"],
+["Wie lange dauert es?","ヴィー ランゲ ダウアト エス？","どのくらいかかりますか？","重要","交通"],
+["Wie weit ist es?","ヴィー ヴァイト イスト エス？","どのくらい遠いですか？","重要","交通"],
+["Links.","リンクス","左","重要","方向"],
+["Rechts.","レヒツ","右","重要","方向"],
+["Ich habe eine Reservierung.","イヒ ハーベ アイネ レゼルヴィールング","予約しています","重要","ホテル"],
+["Auf den Namen ...","アウフ デン ナーメン","名前は…です","重要","ホテル"],
+["Ich möchte einchecken.","イヒ メヒテ アインチェッケン","チェックインしたいです","重要","ホテル"],
+["Ich möchte auschecken.","イヒ メヒテ アウスチェッケン","チェックアウトしたいです","重要","ホテル"],
+["Wo ist mein Zimmer?","ヴォー イスト マイン ツィンマー？","私の部屋はどこですか？","補助","ホテル"],
+["Wo ist der Aufzug?","ヴォー イスト デア アウフツーク？","エレベーターはどこですか？","補助","ホテル"],
+["Wann ist das Frühstück?","ヴァン イスト ダス フリューシュトュック？","朝食は何時ですか？","重要","ホテル"],
+["Gibt es WLAN?","ギプト エス ヴェーラン？","Wi-Fiはありますか？","重要","生活"],
+["Wie ist das WLAN-Passwort?","ヴィー イスト ダス ヴェーラン パスヴォルト？","Wi-Fiのパスワードは何ですか？","補助","生活"],
+["Es funktioniert nicht.","エス フンクツィオニールト ニヒト","動きません／使えません","重要","トラブル"],
+["Ich brauche Hilfe.","イヒ ブラウヘ ヒルフェ","助けが必要です","重要","トラブル"],
+["Können Sie mir helfen?","ケネン ズィー ミーア ヘルフェン？","助けてもらえますか？","重要","トラブル"],
+["Kein Problem.","カイン プロブレーム","問題ありません","補助","会話"],
+["Alles klar.","アレス クラー","分かりました／了解です","重要","会話"],
+["Wie spät ist es?","ヴィー シュペート イスト エス？","今何時ですか？","重要","時間"]
+];
+
+/* ════ FLASHCARD STATE ════ */
+let fi=0, learned=JSON.parse(localStorage.getItem('bg100')||'[]'), jpVisible=true;
+function render(){
+  const d=data[fi];
+  document.getElementById('de').textContent=d[0];
+  document.getElementById('kana').textContent=d[1];
+  document.getElementById('jp').textContent=jpVisible?d[2]:'•••';
+  document.getElementById('rank').textContent=d[3];
+  document.getElementById('cat').textContent=d[4];
+  document.getElementById('count').textContent=`${fi+1} / ${data.length}`;
+  document.getElementById('learned').textContent=`暗記済み ${learned.length}`;
+  document.getElementById('bar').style.width=(learned.length/data.length*100)+'%';
+}
+function speak(rate=0.85){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(data[fi][0]);u.lang='de-DE';u.rate=rate;speechSynthesis.speak(u)}
+function speakSlow(){speak(.6)}
+function next(){fi=(fi+1)%data.length;render()}
+function prev(){fi=(fi-1+data.length)%data.length;render()}
+function toggleJP(){jpVisible=!jpVisible;render()}
+function mark(ok){if(ok&&!learned.includes(fi))learned.push(fi);if(!ok)learned=learned.filter(x=>x!==fi);localStorage.setItem('bg100',JSON.stringify(learned));next()}
+function randomCard(){fi=Math.floor(Math.random()*data.length);render()}
+function today10(){const pool=[...Array(data.length).keys()].sort(()=>Math.random()-.5).slice(0,10);fi=pool[0];render()}
+function showUnlearned(){const a=[...Array(data.length).keys()].filter(x=>!learned.includes(x));if(!a.length){alert('100個すべて暗記済みです！');return}fi=a[Math.floor(Math.random()*a.length)];render()}
+function resetAll(){if(confirm('暗記進捗をリセットしますか？')){learned=[];localStorage.removeItem('bg100');render()}}
+function quiz(){
+  const correct=data[fi][0];let choices=[correct];
+  while(choices.length<4){const x=data[Math.floor(Math.random()*data.length)][0];if(!choices.includes(x))choices.push(x)}
+  choices.sort(()=>Math.random()-.5);
+  const ans=prompt('日本語：'+data[fi][2]+'\n\nドイツ語を選んでください。\n\n'+choices.map((x,n)=>`${n+1}. ${x}`).join('\n'));
+  if(ans!==null){const n=parseInt(ans)-1;if(choices[n]===correct){alert('正解！');mark(true)}else alert('不正解。正解は '+correct)}
+}
+render();
+
+/* ════ TAB SWITCH ════ */
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',['flash','builder'][i]===name));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='builder')builderInit();
+}
+
+/* ════════════════════════════════════════════
+   BUILDER – DATA
+════════════════════════════════════════════ */
+
+/* ── 30件のプリセット用法 ── */
+const PRESET_PATTERNS=[
+  {id:'p01',template:'Ich möchte ○○.',jp:'○○が欲しいです',cat:'注文',preset:true},
+  {id:'p02',template:'Ich hätte gern ○○.',jp:'○○をお願いします（丁寧）',cat:'注文',preset:true},
+  {id:'p03',template:'Ein ○○, bitte.',jp:'○○を一つお願いします',cat:'注文',preset:true},
+  {id:'p04',template:'Noch ein ○○, bitte.',jp:'○○をもう一つお願いします',cat:'注文',preset:true},
+  {id:'p05',template:'Ohne ○○, bitte.',jp:'○○なしでお願いします',cat:'注文',preset:true},
+  {id:'p06',template:'Mit ○○, bitte.',jp:'○○付きでお願いします',cat:'注文',preset:true},
+  {id:'p07',template:'Wo ist ○○?',jp:'○○はどこですか？',cat:'交通',preset:true},
+  {id:'p08',template:'Wie komme ich zu ○○?',jp:'○○へはどう行けばいいですか？',cat:'交通',preset:true},
+  {id:'p09',template:'Fährt dieser Zug nach ○○?',jp:'この電車は○○へ行きますか？',cat:'交通',preset:true},
+  {id:'p10',template:'Einmal nach ○○, bitte.',jp:'○○まで1枚お願いします',cat:'交通',preset:true},
+  {id:'p11',template:'Haben Sie ○○?',jp:'○○はありますか？',cat:'買い物',preset:true},
+  {id:'p12',template:'Wo kann ich ○○ kaufen?',jp:'どこで○○を買えますか？',cat:'買い物',preset:true},
+  {id:'p13',template:'Wie viel kostet ○○?',jp:'○○はいくらですか？',cat:'買い物',preset:true},
+  {id:'p14',template:'Ich suche ○○.',jp:'○○を探しています',cat:'買い物',preset:true},
+  {id:'p15',template:'Auf den Namen ○○.',jp:'名前は○○です',cat:'ホテル',preset:true},
+  {id:'p16',template:'Ich habe eine Reservierung auf den Namen ○○.',jp:'○○という名前で予約しています',cat:'ホテル',preset:true},
+  {id:'p17',template:'Wann öffnet ○○?',jp:'○○は何時に開きますか？',cat:'生活',preset:true},
+  {id:'p18',template:'Wann schließt ○○?',jp:'○○は何時に閉まりますか？',cat:'生活',preset:true},
+  {id:'p19',template:'Gibt es ○○?',jp:'○○はありますか？',cat:'生活',preset:true},
+  {id:'p20',template:'Kann ich ○○ haben?',jp:'○○をいただけますか？',cat:'レストラン',preset:true},
+  {id:'p21',template:'Ist ○○ vegetarisch?',jp:'○○はベジタリアンですか？',cat:'レストラン',preset:true},
+  {id:'p22',template:'Ich bin allergisch gegen ○○.',jp:'○○アレルギーです',cat:'レストラン',preset:true},
+  {id:'p23',template:'Ich spreche ○○.',jp:'○○語を話します',cat:'会話',preset:true},
+  {id:'p24',template:'Ich komme aus ○○.',jp:'○○から来ました',cat:'会話',preset:true},
+  {id:'p25',template:'Ich wohne in ○○.',jp:'○○に住んでいます',cat:'会話',preset:true},
+  {id:'p26',template:'Ich bin ○○.',jp:'私は○○です',cat:'会話',preset:true},
+  {id:'p27',template:'Mein Name ist ○○.',jp:'私の名前は○○です',cat:'会話',preset:true},
+  {id:'p28',template:'Ich brauche ○○.',jp:'○○が必要です',cat:'トラブル',preset:true},
+  {id:'p29',template:'Ich möchte ○○ nach ○○ schicken.',jp:'○○を○○に送りたいです',cat:'郵便',preset:true},
+  {id:'p30',template:'Gibt es einen Zug nach ○○?',jp:'○○行きの電車はありますか？',cat:'交通',preset:true},
+];
+
+/* ── 初期登録単語（カテゴリ別） ── */
+const PRESET_WORDS=[
+  // 飲み物
+  {id:'w01',de:'Bier',jp:'ビール',cat:'飲み物'},{id:'w02',de:'Wasser',jp:'水',cat:'飲み物'},
+  {id:'w03',de:'Kaffee',jp:'コーヒー',cat:'飲み物'},{id:'w04',de:'Tee',jp:'紅茶',cat:'飲み物'},
+  {id:'w05',de:'Wein',jp:'ワイン',cat:'飲み物'},{id:'w06',de:'Saft',jp:'ジュース',cat:'飲み物'},
+  // 食べ物
+  {id:'w10',de:'Brot',jp:'パン',cat:'食べ物'},{id:'w11',de:'Currywurst',jp:'カリーヴルスト',cat:'食べ物'},
+  {id:'w12',de:'Döner',jp:'ドネルケバブ',cat:'食べ物'},{id:'w13',de:'Käse',jp:'チーズ',cat:'食べ物'},
+  {id:'w14',de:'Fleisch',jp:'肉',cat:'食べ物'},{id:'w15',de:'Fisch',jp:'魚',cat:'食べ物'},
+  {id:'w16',de:'Gemüse',jp:'野菜',cat:'食べ物'},{id:'w17',de:'Milch',jp:'牛乳',cat:'食べ物'},
+  // 場所
+  {id:'w20',de:'der Bahnhof',jp:'駅',cat:'場所'},{id:'w21',de:'die Toilette',jp:'トイレ',cat:'場所'},
+  {id:'w22',de:'die U-Bahn',jp:'地下鉄',cat:'場所'},{id:'w23',de:'die S-Bahn',jp:'Sバーン',cat:'場所'},
+  {id:'w24',de:'das Hotel',jp:'ホテル',cat:'場所'},{id:'w25',de:'die Apotheke',jp:'薬局',cat:'場所'},
+  {id:'w26',de:'der Supermarkt',jp:'スーパー',cat:'場所'},{id:'w27',de:'das Krankenhaus',jp:'病院',cat:'場所'},
+  {id:'w28',de:'die Polizei',jp:'警察',cat:'場所'},{id:'w29',de:'der Flughafen',jp:'空港',cat:'場所'},
+  // 地名
+  {id:'w40',de:'Berlin',jp:'ベルリン',cat:'地名'},{id:'w41',de:'München',jp:'ミュンヘン',cat:'地名'},
+  {id:'w42',de:'Hamburg',jp:'ハンブルク',cat:'地名'},{id:'w43',de:'Frankfurt',jp:'フランクフルト',cat:'地名'},
+  {id:'w44',de:'Alexanderplatz',jp:'アレクサンダープラッツ',cat:'地名'},
+  {id:'w45',de:'Brandenburger Tor',jp:'ブランデンブルク門',cat:'地名'},
+  // 言語・国
+  {id:'w50',de:'Japanisch',jp:'日本語',cat:'言語'},{id:'w51',de:'Englisch',jp:'英語',cat:'言語'},
+  {id:'w52',de:'Deutsch',jp:'ドイツ語',cat:'言語'},
+  {id:'w53',de:'Japan',jp:'日本',cat:'国名'},{id:'w54',de:'Deutschland',jp:'ドイツ',cat:'国名'},
+  // アレルゲン
+  {id:'w60',de:'Nüsse',jp:'ナッツ',cat:'アレルゲン'},{id:'w61',de:'Gluten',jp:'グルテン',cat:'アレルゲン'},
+  {id:'w62',de:'Laktose',jp:'乳糖',cat:'アレルゲン'},{id:'w63',de:'Eier',jp:'卵',cat:'アレルゲン'},
+];
+
+const SLOTS=['○○','△△','◇◇','□□'];
+
+/* ════ BUILDER STATE ════ */
+let bPatterns=[], bWords=[], bSelectedPattern=null, bSlotValues={};
+
+function bLoad(){
+  bPatterns=JSON.parse(localStorage.getItem('bg100_patterns')||'null');
+  if(!bPatterns){bPatterns=[...PRESET_PATTERNS];bSavePatterns();}
+  bWords=JSON.parse(localStorage.getItem('bg100_words')||'null');
+  if(!bWords){bWords=[...PRESET_WORDS];bSaveWords();}
+}
+function bSavePatterns(){localStorage.setItem('bg100_patterns',JSON.stringify(bPatterns));}
+function bSaveWords(){localStorage.setItem('bg100_words',JSON.stringify(bWords));}
+
+function builderInit(){
+  bLoad();
+  populateCatFilters();
+  renderPatternList();
+  renderWordList();
+  renderBuilderHistory();
+}
+
+/* ── category filters ── */
+function getAllPatternCats(){return[...new Set(bPatterns.map(p=>p.cat))].sort();}
+function getAllWordCats(){return[...new Set(bWords.map(w=>w.cat))].sort();}
+function populateCatFilters(){
+  const cf=document.getElementById('catFilter');
+  const cur=cf.value;
+  cf.innerHTML='<option value="">すべてのカテゴリ</option>'+getAllPatternCats().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(cur)cf.value=cur;
+  const wcf=document.getElementById('wordCatFilter');
+  const wcur=wcf.value;
+  wcf.innerHTML='<option value="">すべて</option>'+getAllWordCats().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(wcur)wcf.value=wcur;
+}
+
+/* ── pattern list ── */
+function renderPatternList(){
+  const filter=document.getElementById('catFilter').value;
+  const list=filter?bPatterns.filter(p=>p.cat===filter):bPatterns;
+  const el=document.getElementById('patternList');
+  if(!list.length){el.innerHTML='<div class="empty">用法がありません</div>';return;}
+  el.innerHTML=list.map(p=>`
+    <div class="pattern-item${bSelectedPattern&&bSelectedPattern.id===p.id?' selected':''}" onclick="selectPattern('${p.id}')">
+      <div class="pattern-meta">
+        <div class="pattern-cat">${esc(p.cat)}</div>
+        <div class="pattern-template">${highlightSlots(esc(p.template))}</div>
+        <div class="pattern-jp">${esc(p.jp)}</div>
+      </div>
+      ${p.preset?'':'<button class="pattern-del" onclick="event.stopPropagation();deletePattern(\''+p.id+'\')">✕</button>'}
+    </div>`).join('');
+}
+function highlightSlots(t){
+  return t.replace(/○○|△△|◇◇|□□/g,m=>`<span style="color:var(--brand);font-weight:800">${m}</span>`);
+}
+
+/* ── select pattern → show slots ── */
+function selectPattern(id){
+  bSelectedPattern=bPatterns.find(p=>p.id===id)||null;
+  bSlotValues={};
+  renderPatternList();
+  if(!bSelectedPattern){document.getElementById('slotArea').style.display='none';return;}
+  const slots=extractSlots(bSelectedPattern.template);
+  const sa=document.getElementById('slotArea');
+  if(!slots.length){sa.style.display='none';buildSentence();return;}
+  sa.style.display='block';
+  renderSlotRows(slots);
+}
+function extractSlots(template){
+  const found=[];
+  for(const s of SLOTS)if(template.includes(s)&&!found.includes(s))found.push(s);
+  return found;
+}
+function renderSlotRows(slots){
+  const el=document.getElementById('slotRows');
+  el.innerHTML=slots.map((s,i)=>`
+    <div class="slot-row">
+      <div class="slot-label">${s}</div>
+      <select class="slot-select" id="slot_${i}" onchange="updateSlot(${i},'${s}')">
+        <option value="">── 選択 ──</option>
+        ${bWords.map(w=>`<option value="${esc(w.de)}">${esc(w.de)}（${esc(w.jp)}）</option>`).join('')}
+      </select>
+      <input style="flex:0 0 120px;padding:8px 10px;border:1.5px solid #cbd5e1;border-radius:10px;font-size:14px;font-family:inherit" 
+             placeholder="直接入力" id="slotInput_${i}" oninput="updateSlotInput(${i},'${s}')">
+    </div>`).join('');
+  slots.forEach((s,i)=>{bSlotValues[s]='';});
+}
+function updateSlot(i,s){
+  const v=document.getElementById('slot_'+i).value;
+  document.getElementById('slotInput_'+i).value='';
+  bSlotValues[s]=v;
+}
+function updateSlotInput(i,s){
+  const v=document.getElementById('slotInput_'+i).value;
+  document.getElementById('slot_'+i).value='';
+  bSlotValues[s]=v;
+}
+
+/* ── build sentence ── */
+function buildSentence(){
+  if(!bSelectedPattern)return;
+  let de=bSelectedPattern.template;
+  let jp=bSelectedPattern.jp;
+  let ok=true;
+  for(const s of SLOTS){
+    if(de.includes(s)){
+      const val=bSlotValues[s]||'';
+      if(!val){ok=false;continue;}
+      de=de.replaceAll(s,val);
+      jp=jp.replaceAll(s,val);
+    }
+  }
+  const slots=extractSlots(bSelectedPattern.template);
+  const missing=slots.filter(s=>!bSlotValues[s]);
+  if(missing.length>0){
+    // partial build with blanks shown
+    let dePreview=bSelectedPattern.template;
+    for(const s of SLOTS){
+      if(dePreview.includes(s)){
+        const val=bSlotValues[s];
+        if(val)dePreview=dePreview.replaceAll(s,val);
+      }
+    }
+    showResult(dePreview,jp,false);
+    return;
+  }
+  showResult(de,jp,true);
+  saveBuilderHistory(de,jp);
+}
+let _currentResultText='';
+function showResult(de,jp,complete){
+  _currentResultText=de;
+  const el=document.getElementById('builderResult');
+  el.style.display='block';
+  el.innerHTML=`<div class="result-box">
+    <div class="result-label">生成されたドイツ語</div>
+    <div class="result-de">${highlightSlots(esc(de))}</div>
+    <div class="result-jp">${esc(jp)}</div>
+    <div class="result-actions">
+      <button onclick="bSpeakCurrent()">🔊 通常速度</button>
+      <button onclick="bSpeakCurrentSlow()">🐢 ゆっくり</button>
+      ${complete?'':'<div style="font-size:12px;color:#94a3b8;align-self:center">スロットをすべて埋めると完成します</div>'}
+    </div>
+  </div>`;
+  el.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+/* ── speech ── */
+function bSpeakCurrent(){bSpeak(_currentResultText,false);}
+function bSpeakCurrentSlow(){bSpeak(_currentResultText,true);}
+function bSpeakHistory(idx,slow=false){const t=(window._historyTexts||[])[idx];if(t)bSpeak(t,slow);}
+function bSpeak(text,slow=false){
+  if(!('speechSynthesis' in window)){alert('このブラウザは音声読み上げ非対応です');return;}
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);u.lang='de-DE';u.rate=slow?.55:.82;
+  const v=speechSynthesis.getVoices().find(x=>/^de(-|_)/i.test(x.lang));
+  if(v)u.voice=v;
+  speechSynthesis.speak(u);
+}
+
+/* ── history ── */
+function saveBuilderHistory(de,jp){
+  let h=JSON.parse(localStorage.getItem('bg100_builder_history')||'[]');
+  h=h.filter(x=>x.de!==de);
+  h.unshift({de,jp,at:new Date().toISOString()});
+  localStorage.setItem('bg100_builder_history',JSON.stringify(h.slice(0,20)));
+  renderBuilderHistory();
+}
+function renderBuilderHistory(){
+  const h=JSON.parse(localStorage.getItem('bg100_builder_history')||'[]');
+  const el=document.getElementById('builderHistory');
+  if(!h.length){el.innerHTML='<div class="empty">まだ生成していません</div>';return;}
+  el.innerHTML=h.map((x,idx)=>`<div class="hist-item">
+    <div style="flex:1">
+      <div class="hist-de">${esc(x.de)}</div>
+      <div class="hist-jp">${esc(x.jp)}</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button style="padding:6px 10px;font-size:14px;background:#e2e8f0;color:var(--ink)" onclick="bSpeakHistory(${idx})">🔊</button>
+      <button style="padding:6px 10px;font-size:14px;background:#e2e8f0;color:var(--ink)" onclick="bSpeakHistory(${idx},true)">🐢</button>
+    </div>
+  </div>`).join('');
+  // 履歴テキストをグローバルに保持
+  window._historyTexts=h.map(x=>x.de);
+}
+
+/* ── word list ── */
+function renderWordList(){
+  const filter=document.getElementById('wordCatFilter').value;
+  const list=filter?bWords.filter(w=>w.cat===filter):bWords;
+  const el=document.getElementById('wordList');
+  if(!list.length){el.innerHTML='<div class="empty" style="grid-column:1/-1">単語がありません</div>';return;}
+  el.innerHTML=list.map(w=>`<div class="word-item">
+    <div style="flex:1"><div class="word-de">${esc(w.de)}</div><div class="word-jp">${esc(w.jp)} <span style="color:var(--ink3);font-size:11px">${esc(w.cat)}</span></div></div>
+    ${w.preset?'':`<button class="word-del" onclick="deleteWord('${w.id}')">✕</button>`}
+  </div>`).join('');
+}
+
+/* ── delete ── */
+function deletePattern(id){
+  if(!confirm('この用法を削除しますか？'))return;
+  bPatterns=bPatterns.filter(p=>p.id!==id);
+  bSavePatterns();
+  if(bSelectedPattern&&bSelectedPattern.id===id){bSelectedPattern=null;document.getElementById('slotArea').style.display='none';document.getElementById('builderResult').style.display='none';}
+  populateCatFilters();renderPatternList();
+}
+function deleteWord(id){
+  if(!confirm('この単語を削除しますか？'))return;
+  bWords=bWords.filter(w=>w.id!==id);bSaveWords();
+  populateCatFilters();renderWordList();
+  // re-render slot rows if open
+  if(bSelectedPattern){const slots=extractSlots(bSelectedPattern.template);renderSlotRows(slots);}
+}
+
+/* ── modals ── */
+function openPatternModal(){document.getElementById('patternModal').classList.add('open');document.getElementById('pm-template').focus();}
+function closePatternModal(){document.getElementById('patternModal').classList.remove('open');['pm-template','pm-jp','pm-cat'].forEach(id=>document.getElementById(id).value='');document.getElementById('pm-preview').textContent='';}
+function previewTemplate(){
+  const t=document.getElementById('pm-template').value;
+  const slots=SLOTS.filter(s=>t.includes(s));
+  document.getElementById('pm-preview').textContent=slots.length?`スロット: ${slots.join(' ')}` :'スロットなし（固定文）';
+}
+function savePattern(){
+  const template=document.getElementById('pm-template').value.trim();
+  const jp=document.getElementById('pm-jp').value.trim();
+  const cat=document.getElementById('pm-cat').value.trim()||'その他';
+  if(!template||!jp){alert('テンプレートと日本語の意味を入力してください');return;}
+  const id='u'+Date.now();
+  bPatterns.push({id,template,jp,cat,preset:false});
+  bSavePatterns();populateCatFilters();renderPatternList();closePatternModal();
+}
+
+function openWordModal(){document.getElementById('wordModal').classList.add('open');document.getElementById('wm-de').focus();}
+function closeWordModal(){document.getElementById('wordModal').classList.remove('open');['wm-de','wm-jp','wm-cat'].forEach(id=>document.getElementById(id).value='');}
+function saveWord(){
+  const de=document.getElementById('wm-de').value.trim();
+  const jp=document.getElementById('wm-jp').value.trim();
+  const cat=document.getElementById('wm-cat').value.trim()||'その他';
+  if(!de||!jp){alert('ドイツ語と日本語を入力してください');return;}
+  const id='uw'+Date.now();
+  bWords.push({id,de,jp,cat,preset:false});
+  bSaveWords();populateCatFilters();renderWordList();closeWordModal();
+  // refresh slot selects
+  if(bSelectedPattern){const slots=extractSlots(bSelectedPattern.template);if(slots.length)renderSlotRows(slots);}
+}
+
+/* modal backdrop close */
+document.querySelectorAll('.modal-bg').forEach(bg=>bg.addEventListener('click',function(e){if(e.target===this){this.classList.remove('open');}}));
+
+/* ── escape ── */
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+</script>
+</body>
+</html>
