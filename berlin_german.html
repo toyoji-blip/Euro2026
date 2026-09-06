@@ -460,7 +460,7 @@ const PRESET_PATTERNS=[
   {id:'p26',template:'Ich bin ○○.',jp:'私は○○です',cat:'会話',preset:true},
   {id:'p27',template:'Mein Name ist ○○.',jp:'私の名前は○○です',cat:'会話',preset:true},
   {id:'p28',template:'Ich brauche ○○.',jp:'○○が必要です',cat:'トラブル',preset:true},
-  {id:'p29',template:'Ich möchte ○○ nach ○○ schicken.',jp:'○○を○○に送りたいです',cat:'郵便',preset:true},
+  {id:'p29',template:'Ich möchte das nach ○○ schicken.',jp:'○○へ送りたいです',cat:'郵便',preset:true},
   {id:'p30',template:'Gibt es einen Zug nach ○○?',jp:'○○行きの電車はありますか？',cat:'交通',preset:true},
   {id:'p31',template:'Wie komme ich zur ○○?',jp:'○○への道順を教えてください',cat:'交通',preset:true},
 ];
@@ -502,11 +502,22 @@ const SLOTS=['○○','△△','◇◇','□□'];
 /* ════ BUILDER STATE ════ */
 let bPatterns=[], bWords=[], bSelectedPattern=null, bSlotValues={};
 
+const PRESET_VERSION='v4';
 function bLoad(){
-  bPatterns=JSON.parse(localStorage.getItem('bg100_patterns')||'null');
-  if(!bPatterns){bPatterns=[...PRESET_PATTERNS];bSavePatterns();}
-  bWords=JSON.parse(localStorage.getItem('bg100_words')||'null');
-  if(!bWords){bWords=[...PRESET_WORDS];bSaveWords();}
+  // バージョンが変わったらプリセットを自動リセット
+  if(localStorage.getItem('bg100_preset_version')!==PRESET_VERSION){
+    const userPatterns=(JSON.parse(localStorage.getItem('bg100_patterns')||'[]')).filter(p=>!p.preset);
+    const userWords=(JSON.parse(localStorage.getItem('bg100_words')||'[]')).filter(w=>!w.preset);
+    bPatterns=[...PRESET_PATTERNS,...userPatterns];
+    bWords=[...PRESET_WORDS,...userWords];
+    bSavePatterns();bSaveWords();
+    localStorage.setItem('bg100_preset_version',PRESET_VERSION);
+  } else {
+    bPatterns=JSON.parse(localStorage.getItem('bg100_patterns')||'null');
+    if(!bPatterns){bPatterns=[...PRESET_PATTERNS];bSavePatterns();}
+    bWords=JSON.parse(localStorage.getItem('bg100_words')||'null');
+    if(!bWords){bWords=[...PRESET_WORDS];bSaveWords();}
+  }
 }
 function bSavePatterns(){localStorage.setItem('bg100_patterns',JSON.stringify(bPatterns));}
 function bSaveWords(){localStorage.setItem('bg100_words',JSON.stringify(bWords));}
