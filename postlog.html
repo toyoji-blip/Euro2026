@@ -319,49 +319,21 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
 
   // ショートカット連携：URLに ?ocr=認識済みテキスト（&type=envelope|opened）を付けて開くと、
   // 新規記録モーダルが自動で開き、テキストが差出人欄・認識テキスト欄にプリセットされる。
-  // 同時にクリップボードから写真を自動読み取りしてプレビューにセットする。
-  // ショートカット連携：
-  // ショートカット側で「テキストをクリップボードにコピー」→「URLを開く（ベースURLのみ）」で起動。
-  // アプリ起動時にクリップボードからテキストを自動読み取りしてモーダルを開く。
-  // 写真はフォルダ（ダウンロード）から手動で選択。
-  // ショートカット連携：
-  // postlog.html?mode=envelope でアプリを開くと外装記録モーダルが自動で開く。
-  // クリップボードにテキストがあれば差出人・認識テキスト欄に自動入力。
-  // 写真はダウンロードフォルダ（このiPhone内）から手動で選択。
-  async function handleIncomingParams(){
+  function handleIncomingParams(){
     const params = new URLSearchParams(window.location.search);
-    const modeParam = params.get('mode'); // 'envelope' | 'opened'
-    if (!modeParam) return;
-
-    // URLをきれいにしておく
-    window.history.replaceState({}, document.title, window.location.pathname);
-
-    const modalTarget = modeParam === 'opened' ? 'add-opened' : 'add-envelope';
-    tab = modeParam === 'opened' ? 'opened' : 'envelope';
-
-    // まず先にモーダルを開いてDOMを確定させる
-    openModal(modalTarget, { sender: '', ocrText: '' });
-
-    // クリップボードからテキストを読み取り、DOM確定後にフィールドへセット
-    try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text && text.trim()) {
-          const ocrText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-          const sender = ocrText.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
-          // DOMが確定した後にフィールドへ反映
-          setTimeout(() => {
-            const senderInput = root.querySelector('#f-sender');
-            const ocrTextArea = root.querySelector('#f-ocrtext');
-            if (senderInput) senderInput.value = sender;
-            if (ocrTextArea) ocrTextArea.value = ocrText;
-            toast('認識テキストを自動入力しました');
-          }, 100);
-        }
-      }
-    } catch(err) {
-      // クリップボードへのアクセス権限がない場合は空モーダルのまま続行
-    }
+    const ocrParam = params.get('ocr');
+    if (!ocrParam) return;
+    const text = decodeURIComponent(ocrParam);
+    const typeParam = params.get('type') === 'opened' ? 'opened' : 'envelope';
+    tab = typeParam;
+    const guessSender = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+    openModal(typeParam === 'envelope' ? 'add-envelope' : 'add-opened', {
+      sender: guessSender,
+      ocrText: text
+    });
+    // URLをきれいにしておく（リロード時の二重取り込みや共有時の混乱を防ぐ）
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
   }
 
 
@@ -1046,9 +1018,17 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
         draft.photo = dataUrl;
         const preview = root.querySelector('#f-preview');
         preview.src = dataUrl; preview.style.display = 'block';
-        // OCRは実行しない（ショートカットのiPhone文字認識テキストをクリップボード経由で受け取るため）
         const statusEl = root.querySelector('#f-ocr-status');
-        if (statusEl) statusEl.textContent = '写真を読み込みました';
+        const text = await runOcr(dataUrl, statusEl);
+        draft.ocrText = text;
+        if (modalMode === 'add-envelope' || modalMode === 'edit-envelope') {
+          const guess = text.split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+          draft.sender = guess;
+          const senderInput = root.querySelector('#f-sender');
+          if (senderInput) senderInput.value = guess;
+          const ocrTextArea = root.querySelector('#f-ocrtext');
+          if (ocrTextArea) ocrTextArea.value = text;
+        }
       };
     }
 
@@ -1124,7 +1104,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
     if (cancelBtn) cancelBtn.onclick = closeModal;
     const saveBtn = root.querySelector('#f-save');
     if (saveBtn) saveBtn.onclick = () => {
-      if (modalMode === 'add-envelope') handleSaveEnvelope();
+      if (modalMode === 'add-envelope' || modalMode === 'edit-envelope') handleSaveEnvelope();
       else handleSaveOpened();
     };
 
@@ -1155,7 +1135,7 @@ html, body { margin: 0; padding: 0; width: 100%; background: #EAE6DD; }
   link.href = 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600;700&display=swap';
   document.head.appendChild(link);
 
-  loadAll().then(() => { handleIncomingParams(); }); // handleIncomingParams は async なので内部でawait処理される
+  loadAll().then(() => { handleIncomingParams(); });
 })();
 </script>
 </body>
