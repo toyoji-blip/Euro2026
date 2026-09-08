@@ -523,22 +523,32 @@ const SLOTS=['○○','△△','◇◇','□□'];
 /* ════ BUILDER STATE ════ */
 let bPatterns=[], bWords=[], bSelectedPattern=null, bSlotValues={};
 
-const PRESET_VERSION='v8';
+const PRESET_VERSION='v9';
 function bLoad(){
-  // バージョンが変わったらプリセットを自動リセット
+  // localStorageにはユーザー追加分のみ保存。プリセットは常にコードから読む
   if(localStorage.getItem('bg100_preset_version')!==PRESET_VERSION){
-    const userPatterns=(JSON.parse(localStorage.getItem('bg100_patterns')||'[]')).filter(p=>!p.preset);
-    const userWords=(JSON.parse(localStorage.getItem('bg100_words')||'[]')).filter(w=>!w.preset);
-    bPatterns=[...PRESET_PATTERNS,...userPatterns];
-    bWords=[...PRESET_WORDS,...userWords];
-    bSavePatterns();bSaveWords();
+    // バージョン更新時：ユーザーデータだけ引き継ぎ、localStorageをクリア
+    const old=JSON.parse(localStorage.getItem('bg100_patterns')||'[]');
+    const oldW=JSON.parse(localStorage.getItem('bg100_words')||'[]');
+    const userPatterns=old.filter(p=>p.preset===false);
+    const userWords=oldW.filter(w=>w.preset===false);
+    localStorage.setItem('bg100_user_patterns',JSON.stringify(userPatterns));
+    localStorage.setItem('bg100_user_words',JSON.stringify(userWords));
+    localStorage.removeItem('bg100_patterns');
+    localStorage.removeItem('bg100_words');
     localStorage.setItem('bg100_preset_version',PRESET_VERSION);
-  } else {
-    bPatterns=JSON.parse(localStorage.getItem('bg100_patterns')||'null');
-    if(!bPatterns){bPatterns=[...PRESET_PATTERNS];bSavePatterns();}
-    bWords=JSON.parse(localStorage.getItem('bg100_words')||'null');
-    if(!bWords){bWords=[...PRESET_WORDS];bSaveWords();}
   }
+  // 常にプリセット＋ユーザー追加分をマージ（localStorageにはユーザー分のみ）
+  const userPatterns=JSON.parse(localStorage.getItem('bg100_user_patterns')||'[]');
+  const userWords=JSON.parse(localStorage.getItem('bg100_user_words')||'[]');
+  bPatterns=[...PRESET_PATTERNS,...userPatterns];
+  bWords=[...PRESET_WORDS,...userWords];
+}
+function bSavePatterns(){
+  localStorage.setItem('bg100_user_patterns',JSON.stringify(bPatterns.filter(p=>!p.preset)));
+}
+function bSaveWords(){
+  localStorage.setItem('bg100_user_words',JSON.stringify(bWords.filter(w=>!w.preset)));
 }
 function bSavePatterns(){localStorage.setItem('bg100_patterns',JSON.stringify(bPatterns));}
 function bSaveWords(){localStorage.setItem('bg100_words',JSON.stringify(bWords));}
@@ -772,8 +782,9 @@ function exportUserData(){
   const history=JSON.parse(localStorage.getItem('bg100_builder_history')||'[]');
   const out={
     exportedAt:new Date().toISOString(),
-    userPatterns,
-    userWords,
+    note:'userPatterns/userWordsはユーザー追加分のみ。生成文はhistoryに記録済み。',
+    userAddedPatterns:userPatterns,
+    userAddedWords:userWords,
     totalHistoryCount:history.length,
     history
   };
